@@ -3,54 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <title>예모도로</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
 
   <!-- 사이드바 -->
   <aside class="sidebar">
     <h1 class="logo">예모도로</h1>
+    <div class="user" id="userLabel">Guest</div>
 
-    <div id="userLabel" class="user">Guest</div>
-
-    <button id="loginBtn" class="side-btn">로그인</button>
-    <button id="logoutBtn" class="side-btn hidden">로그아웃</button>
+    <button class="side-btn" id="loginBtn">로그인</button>
+    <button class="side-btn hidden" id="logoutBtn">로그아웃</button>
   </aside>
 
   <!-- 메인 -->
   <main class="main">
-    <section class="card">
+    <div class="card">
       <h2>오늘 집중</h2>
-      <div class="circle" id="todayTime">0분</div>
-    </section>
+      <div class="circle">0분</div>
+    </div>
 
-    <section class="card">
+    <div class="card">
       <h2>총 누적 시간</h2>
-      <p id="totalTime">0시간 0분</p>
-    </section>
+      <p>0시간 0분</p>
+    </div>
   </main>
 
   <!-- 로그인 모달 -->
-  <div id="loginModal" class="modal hidden">
+  <div class="modal hidden" id="loginModal">
     <div class="modal-card">
       <h2>로그인</h2>
-
-      <input id="email" type="email" placeholder="이메일" />
-      <input id="password" type="password" placeholder="비밀번호" />
-
-      <button id="emailLogin">이메일 로그인</button>
-      <button id="emailSignup" class="ghost">회원가입</button>
-
-      <div class="divider">또는</div>
-
-      <button id="googleLogin" class="google">
-        Google로 로그인
-      </button>
+      <p class="login-desc">
+        로그인하면 다른 기기에서도 기록을 이어서 사용할 수 있어요
+      </p>
+      <button class="google-btn" id="googleLogin">Google로 로그인</button>
+      <button class="close-btn" id="closeModal">닫기</button>
     </div>
   </div>
 
-  <script type="module" src="firebase.js"></script>
-  <script type="module" src="script.js"></script>
+  <!-- 🔥 중요: type="module" -->
+  <script type="module" src="./script.js"></script>
 </body>
 </html>
