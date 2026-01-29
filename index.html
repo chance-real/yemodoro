@@ -3,45 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <title>예모도로</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- 사이드바 -->
-  <aside class="sidebar">
-    <h1 class="logo">예모도로</h1>
-    <div class="user" id="userLabel">Guest</div>
-
-    <button class="side-btn" id="loginBtn">로그인</button>
-    <button class="side-btn hidden" id="logoutBtn">로그아웃</button>
-  </aside>
-
-  <!-- 메인 -->
-  <main class="main">
-    <div class="card">
-      <h2>오늘 집중</h2>
-      <div class="circle">0분</div>
-    </div>
-
-    <div class="card">
-      <h2>총 누적 시간</h2>
-      <p>0시간 0분</p>
-    </div>
-  </main>
-
-  <!-- 로그인 모달 -->
-  <div class="modal hidden" id="loginModal">
-    <div class="modal-card">
-      <h2>로그인</h2>
-      <p class="login-desc">
-        로그인하면 다른 기기에서도 기록을 이어서 사용할 수 있어요
-      </p>
-      <button class="google-btn" id="googleLogin">Google로 로그인</button>
-      <button class="close-btn" id="closeModal">닫기</button>
-    </div>
+<header class="top">
+  <h1>예모도로</h1>
+  <div class="auth">
+    <button id="logoutBtn">로그아웃</button>
   </div>
+</header>
 
-  <!-- 🔥 중요: type="module" -->
-  <script type="module" src="./script.js"></script>
+<main class="layout">
+  <section class="card">
+    <h2>카테고리</h2>
+    <div id="categoryList"></div>
+    <div class="add-cat">
+      <input id="categoryInput" placeholder="카테고리" /> <button id="addCategoryBtn">추가</button>
+    </div>
+  </section>
+
+  <section class="card center">
+    <div id="currentCategory">예모도로(기본_25분)</div>
+    <div id="timer">25:00</div>
+    <canvas id="ring" width="260" height="260"></canvas>
+    <div class="controls">
+      <button id="startBtn">시작</button>
+      <button id="stopBtn">정지</button>
+      <button id="resetBtn">리셋</button>
+    </div>
+    <div class="controls">
+      <input id="minuteInput" type="number" min="1" max="60" value="25" />
+      <button id="setTimeBtn">시간 설정</button>
+    </div>
+  </section>
+</main>
+
+<script src="script.js"></script>
 </body>
 </html>

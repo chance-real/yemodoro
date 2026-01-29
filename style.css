@@ -1,116 +1,259 @@
+/* ===============================
+   Global
+=============================== */
 * {
   box-sizing: border-box;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Segoe UI", Roboto, sans-serif;
 }
 
 body {
   margin: 0;
-  background: #0b0c10;
-  color: #fff;
-  display: flex;
-  height: 100vh;
-}
-
-/* 사이드바 */
-.sidebar {
-  width: 220px;
-  padding: 24px;
-  background: #111;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.logo {
-  margin: 0;
-}
-
-.user {
-  color: #aaa;
-  font-size: 14px;
-}
-
-.side-btn {
-  padding: 10px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  background: #222;
-  color: #fff;
-}
-
-.side-btn:hover {
-  background: #333;
+  background: radial-gradient(circle at top, #1b1b1b, #0b0b0b);
+  color: #f5f5f7;
 }
 
 .hidden {
-  display: none;
+  display: none !important;
 }
 
-/* 메인 */
-.main {
-  flex: 1;
-  padding: 32px;
+/* ===============================
+   Header
+=============================== */
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+}
+
+.top h1 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.auth {
+  display: flex;
+  gap: 10px;
+}
+
+/* ===============================
+   Layout
+=============================== */
+.layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 24px;
+  grid-template-columns: 300px 1fr;
+  gap: 32px;
+  padding: 32px;
 }
 
 .card {
-  background: #111;
-  border-radius: 20px;
+  background: linear-gradient(180deg, #1c1c1e, #141414);
+  border-radius: 24px;
   padding: 24px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 20px 40px rgba(0,0,0,0.6);
 }
 
-.circle {
+.card h2 {
+  font-size: 16px;
+  color: #b0b0b0;
+}
+
+/* ===============================
+   Category
+=============================== */
+#categoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  position: relative; /* 팝업 위치 기준 */
+}
+
+.category-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+  text-align: left;
+  /* 텍스트 넘침 처리 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.category-settings {
+  width: 40px;
+  height: 100%; /* 버튼 높이 맞춤 */
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+  font-size: 18px;
+}
+
+.category-settings:hover {
+  background: rgba(0,0,0,0.5);
+}
+
+.add-cat {
+  display: flex;
+  gap: 8px;
   margin-top: 16px;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  border: 10px solid #222;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
 }
 
-/* 모달 */
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+#categoryInput {
+  flex: 1;
 }
 
-.modal-card {
-  background: #111;
-  padding: 32px;
-  border-radius: 20px;
-  width: 320px;
+/* ===============================
+   Category Settings Panel (팝업)
+=============================== */
+.settings-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #2c2c2e;
+  border: 1px solid #3a3a3c;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+  width: 200px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-panel input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+}
+
+.settings-panel input[type="color"] {
+  flex: 1;
+  height: 36px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.settings-btn {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px;
+}
+
+.btn-delete {
+  background: #ff453a;
+  color: white;
+}
+.btn-save {
+  background: #30d158;
+  color: black;
+}
+
+/* ===============================
+   Timer Center
+=============================== */
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#currentCategory {
+  font-size: 18px;
+  margin-bottom: 6px;
+  color: #b0b0b0;
+}
+
+#timer {
+  font-size: 88px;
+  font-weight: 700;
+  margin: 12px 0 20px;
+}
+
+/* ===============================
+   Canvas Ring
+=============================== */
+canvas {
+  margin: 20px 0;
+  /* 기본 그림자는 JS에서 제어 */
+}
+
+/* ===============================
+   Controls
+=============================== */
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: none;
+  background: #2c2c2e;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #3a3a3c;
+}
+
+input {
+  width: 80px;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #1f1f1f;
+  color: #fff;
   text-align: center;
 }
 
-.login-desc {
-  color: #aaa;
-  font-size: 14px;
-  margin-bottom: 24px;
+/* ===============================
+   Finish Animation
+=============================== */
+@keyframes pop {
+  0% { transform: scale(1); opacity: 1; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1.4); opacity: 0; }
 }
 
-.google-btn {
-  width: 100%;
-  padding: 12px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
+.pop {
+  animation: pop 0.8s ease-out forwards;
 }
 
-.close-btn {
-  margin-top: 12px;
-  background: transparent;
-  border: none;
-  color: #777;
-  cursor: pointer;
+#ring {
+  display: block;
+  margin: 0 auto;
+}
+
+canvas.running {
+  transition: filter 0.3s ease;
 }
