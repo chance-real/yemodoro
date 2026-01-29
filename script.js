@@ -13,21 +13,54 @@ import {
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-let data = {
-  totalMinutes: 0
-};
-
+/* =====================
+   DOM
+===================== */
 const modal = document.getElementById("loginModal");
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const userLabel = document.getElementById("userLabel");
 
+const email = document.getElementById("email");
+const password = document.getElementById("password");
+const emailLogin = document.getElementById("emailLogin");
+const emailSignup = document.getElementById("emailSignup");
+const googleLogin = document.getElementById("googleLogin");
+
+const totalTimeEl = document.getElementById("totalTime");
+
+/* =====================
+   상태
+===================== */
+let data = {
+  totalMinutes: 0
+};
+
+/* =====================
+   Guest 사용 가능
+===================== */
+function render() {
+  totalTimeEl.textContent =
+    `${Math.floor(data.totalMinutes / 60)}시간 ${data.totalMinutes % 60}분`;
+}
+
+render();
+
+/* =====================
+   UI
+===================== */
 loginBtn.onclick = () => modal.classList.remove("hidden");
+modal.onclick = e => {
+  if (e.target === modal) modal.classList.add("hidden");
+};
 
 logoutBtn.onclick = async () => {
   await signOut(auth);
 };
 
+/* =====================
+   Auth
+===================== */
 emailLogin.onclick = async () => {
   await signInWithEmailAndPassword(auth, email.value, password.value);
 };
@@ -40,6 +73,9 @@ googleLogin.onclick = async () => {
   await signInWithPopup(auth, googleProvider);
 };
 
+/* =====================
+   로그인 상태 감지
+===================== */
 onAuthStateChanged(auth, async user => {
   if (!user) {
     userLabel.textContent = "Guest";
@@ -62,6 +98,5 @@ onAuthStateChanged(auth, async user => {
     await setDoc(ref, data);
   }
 
-  document.getElementById("totalTime").textContent =
-    `${Math.floor(data.totalMinutes / 60)}시간 ${data.totalMinutes % 60}분`;
+  render();
 });
