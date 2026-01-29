@@ -1,4 +1,6 @@
-/* 기본 설정 */
+/* style.css - 최종 수정본 */
+
+/* 1. 기본 초기화 */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -9,12 +11,12 @@
 body {
     background-color: #0f1014;
     color: white;
-    height: 100vh; /* 화면 전체 높이 사용 */
+    height: 100vh; /* 화면 전체 높이 고정 */
     display: flex;
-    overflow: hidden; /* 스크롤바 완전히 제거 */
+    overflow: hidden; /* 스크롤 아예 막음 */
 }
 
-/* 사이드바 스타일 (기존 유지하되 높이 꽉 채움) */
+/* 2. 사이드바 */
 .sidebar {
     width: 260px;
     background-color: #16171b;
@@ -54,20 +56,22 @@ body {
 .timer-controls span { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 18px; }
 .timer-controls button { background: none; border: none; color: #ff4b4b; cursor: pointer; font-size: 16px; padding: 4px; }
 
-/* 메인 영역 스타일 */
+/* 3. 메인 영역 (여기가 문제였음: Flex로 남은 공간 꽉 채우기) */
 .main-content {
-    flex: 1;
+    flex: 1; /* 남은 공간 차지 */
     padding: 30px;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    background-color: #0f1014;
+    height: 100vh; /* 부모 높이 상속 */
+    min-width: 0; 
 }
 
 /* 상단 헤더 */
 .top-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px; height: 40px; flex-shrink: 0;
+    margin-bottom: 20px; 
+    height: 40px; 
+    flex-shrink: 0; /* 높이 줄어들지 않음 */
 }
 .user-status { font-size: 18px; font-weight: 600; color: #eee; }
 .header-icons button { 
@@ -76,86 +80,102 @@ body {
 }
 .header-icons button:hover { color: #ff4b4b; }
 
-/* 🔥 대시보드 그리드 (핵심 수정) */
+/* 🔥🔥 [핵심 수정] 그리드 레이아웃 🔥🔥 
+   - 절대 짤리지 않게 flex: 1 사용
+   - 왼쪽(통계,맵) vs 오른쪽(타이머) 구조로 변경
+*/
 .dashboard-grid {
     display: grid;
-    /* 상단 통계 영역(높이 자동) / 하단 타이머 영역(나머지 전부) */
-    grid-template-rows: auto 1fr; 
-    /* 가로 3등분: 통계1, 통계2, 히트맵(넓게) */
-    grid-template-columns: 1fr 1fr 2fr; 
+    flex: 1; /* 남은 높이 무조건 다 씀 */
+    min-height: 0; /* 내용 넘쳐도 짤리지 않게 내부 스크롤 처리용 */
+    
+    /* 3개 열: [통계1] [통계2] [타이머(넓게)] */
+    grid-template-columns: 1fr 1fr 1.4fr;
+    
+    /* 2개 행: [상단카드높이] [나머지전부] */
+    grid-template-rows: 150px 1fr;
+    
+    /* 영역 배치 */
     grid-template-areas: 
-        "total today map"
-        "timer timer timer";
+        "total today timer"
+        "map   map   timer";
     gap: 20px;
-    height: 100%; /* 부모 높이 꽉 채움 */
-    overflow: hidden; /* 내부 스크롤 방지 */
 }
 
-/* 영역 할당 */
+/* 각 구역 지정 */
 .area-total { grid-area: total; }
 .area-today { grid-area: today; }
 .area-map   { grid-area: map; }
 .area-timer { grid-area: timer; }
 
-/* 카드 공통 스타일 */
-.stat-card, .heatmap-card {
-    background-color: #18191d; border-radius: 16px; padding: 24px;
-    display: flex; flex-direction: column; justify-content: center;
+/* 카드 공통 */
+.stat-card, .heatmap-card, .donut-card {
+    background-color: #18191d; 
+    border-radius: 20px; 
     border: 1px solid #25262b;
+    overflow: hidden; /* 내용 튀어나감 방지 */
 }
 
+/* 1, 2번 카드: 시간 통계 */
+.stat-card {
+    padding: 24px;
+    display: flex; flex-direction: column; justify-content: center;
+}
 .stat-card h3 { font-size: 14px; color: #777; margin-bottom: 10px; font-weight: 500; }
-.stat-card .time-text { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+.stat-card .time-text { font-size: 2.2vw; font-weight: 700; color: #fff; white-space: nowrap; }
 
-/* 히트맵 스타일 */
-.heatmap-header h3 { font-size: 14px; color: #777; margin-bottom: 12px; }
+/* 3번 카드: 히트맵 (왼쪽 하단 꽉 채움) */
+.heatmap-card {
+    padding: 24px;
+    display: flex; flex-direction: column;
+}
+.heatmap-header h3 { font-size: 14px; color: #777; margin-bottom: 15px; }
 .heatmap-grid {
     display: grid; 
     grid-template-columns: repeat(20, 1fr); 
     grid-template-rows: repeat(5, 1fr);
-    gap: 4px; 
-    width: 100%; flex: 1; /* 남은 공간 채우기 */
+    gap: 6px; 
+    width: 100%; 
+    flex: 1; /* 남은 높이 채우기 */
+    min-height: 0;
 }
-.heatmap-cell { background-color: #25262b; border-radius: 2px; width: 100%; height: 100%; }
-.heatmap-cell.active { background-color: #4caf50; box-shadow: 0 0 5px rgba(76, 175, 80, 0.4); }
+.heatmap-cell { background-color: #25262b; border-radius: 4px; width: 100%; height: 100%; }
+.heatmap-cell.active { background-color: #4caf50; box-shadow: 0 0 8px rgba(76, 175, 80, 0.3); }
 .heatmap-cell.today { border: 1px solid white; }
 
-/* 🔥 메인 타이머 카드 (화면 중앙에 꽉 차게) */
+/* 4번 카드: 타이머 (오른쪽 위아래 통으로 씀) */
 .donut-card {
-    background-color: #18191d; border-radius: 24px;
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     position: relative;
-    border: 1px solid #25262b;
-    /* 그리드 영역 꽉 채우기 */
-    width: 100%; height: 100%; 
+    height: 100%; /* 부모 높이 꽉 채움 */
 }
 
 .expand-btn {
-    position: absolute; top: 30px; right: 30px;
-    background: none; border: none; color: #444; font-size: 22px; cursor: pointer; z-index: 20;
-    transition: 0.2s;
+    position: absolute; top: 25px; right: 25px;
+    background: none; border: none; color: #444; font-size: 20px; cursor: pointer; z-index: 20;
 }
 .expand-btn:hover { color: white; }
 
-/* 타이머 원형 크기 조절 (vmin 사용으로 반응형 처리) */
+/* 타이머 원형 크기 (반응형) */
 .donut-wrapper {
     position: relative; 
-    /* 화면의 가로/세로 중 작은 쪽의 45% 크기로 설정 -> 절대 잘리지 않음 */
-    width: 45vmin; height: 45vmin; 
+    width: 35vmin; height: 35vmin; /* 화면 비율따라 자동 조절 */
     display: flex; justify-content: center; align-items: center;
+}
+/* 화면이 너무 납작할 때 타이머 크기 제한 */
+@media (max-height: 700px) {
+    .donut-wrapper { width: 45vh; height: 45vh; }
 }
 
 .big-timer-display { 
     position: absolute; 
-    /* 폰트 크기도 화면 비율에 맞춤 */
-    font-size: 8vmin; 
-    font-weight: 700; z-index: 10; font-variant-numeric: tabular-nums; 
+    font-size: 6vmin; font-weight: 700; z-index: 10; font-variant-numeric: tabular-nums; 
 }
 
 .visual-timer-container {
     width: 100%; height: 100%; border-radius: 50%; position: relative;
     background: #25262b;
-    box-shadow: 0 0 30px rgba(0,0,0,0.2); /* 은은한 그림자 */
+    box-shadow: 0 0 40px rgba(0,0,0,0.3);
 }
 .visual-timer {
     width: 100%; height: 100%; border-radius: 50%;
@@ -164,23 +184,25 @@ body {
 }
 .visual-timer-cover {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 88%; height: 88%; /* 두께 조절 */
+    width: 88%; height: 88%; 
     background-color: #18191d; border-radius: 50%;
 }
-.timer-message { margin-top: 40px; color: #666; font-size: 16px; font-weight: 500; }
+.timer-message { margin-top: 40px; color: #666; font-size: 15px; font-weight: 500; }
 
-/* 노트북 등 화면이 작을 때 레이아웃 변경 */
-@media (max-width: 1000px) {
+/* 모바일/태블릿 대응 (화면 좁을때만 세로로) */
+@media (max-width: 900px) {
     .dashboard-grid {
-        grid-template-rows: auto auto 1fr;
         grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto 1fr;
         grid-template-areas:
             "total today"
-            "map map"
+            "map   map"
             "timer timer";
+        overflow-y: auto; /* 여기만 스크롤 허용 */
+        display: block; /* 좁으면 블록으로 풀기 */
     }
-    .donut-wrapper { width: 40vmin; height: 40vmin; }
-    .big-timer-display { font-size: 7vmin; }
+    .stat-card, .heatmap-card { margin-bottom: 15px; min-height: 150px; }
+    .donut-card { height: 400px; }
 }
 
 /* 전체화면 모드 */
@@ -191,8 +213,5 @@ body.fullscreen .main-content { padding: 0; }
 body.fullscreen .dashboard-grid { 
     display: block; width: 100vw; height: 100vh; margin: 0; 
 }
-body.fullscreen .donut-card { 
-    width: 100%; height: 100%; border-radius: 0; border: none;
-}
+body.fullscreen .donut-card { width: 100%; height: 100%; border-radius: 0; border: none; }
 body.fullscreen .donut-wrapper { width: 60vmin; height: 60vmin; }
-body.fullscreen .big-timer-display { font-size: 12vmin; }
