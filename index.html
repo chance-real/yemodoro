@@ -1,80 +1,91 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>예모도로 - 찬스 파트너</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>예모도로</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 
-    <div class="container">
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <h2>예모도로</h2>
-                <span class="user-badge">Guest</span>
-            </div>
-
-            <div class="menu-group" id="category-list">
-            </div>
-            
-            <button id="add-category-btn" class="add-btn">
-                <i class="fas fa-plus"></i> 카테고리 추가
-            </button>
-
-            <div class="sidebar-footer">
-                <div class="timer-controls">
-                    <span id="mini-time-display">25:00</span>
-                    <button id="btn-play-mini"><i class="fas fa-play"></i></button>
-                    <button id="btn-reset-mini"><i class="fas fa-redo"></i></button>
-                </div>
-            </div>
-        </nav>
-
-        <main class="main-content">
-            <header class="top-header">
-                <div class="user-status" id="current-category-title">
-                    <span class="dot green"></span> 카테고리 선택 대기중
-                </div>
-                <div class="header-icons">
-                    <button id="delete-category-btn" title="삭제"><i class="fas fa-trash"></i></button>
-                </div>
-            </header>
-
-            <div class="dashboard-grid">
-                <div class="stat-card area-total">
-                    <h3>총 누적 시간</h3>
-                    <div class="time-text" id="total-time">0분</div>
-                </div>
-                
-                <div class="stat-card area-today">
-                    <h3>오늘 집중 (실시간)</h3>
-                    <div class="time-text" id="today-time">0분</div>
-                </div>
-                
-                <div class="heatmap-card area-map">
-                    <div class="heatmap-header">
-                        <h3>활동 기록 (최근 100일)</h3>
-                    </div>
-                    <div class="heatmap-grid" id="heatmap-grid"></div>
-                </div>
-
-                <div class="donut-card area-timer" id="main-timer-card">
-                    <button class="expand-btn" title="전체화면"><i class="fas fa-expand"></i></button>
-                    <div class="donut-wrapper">
-                        <div class="big-timer-display" id="main-time-display">25 : 00</div>
-                        <div class="visual-timer-container">
-                            <div class="visual-timer" id="visual-timer"></div>
-                            <div class="visual-timer-cover"></div>
-                        </div>
-                    </div>
-                    <div class="timer-message" id="timer-message">카테고리를 선택하고 시작하세요</div>
-                </div>
-            </div>
-        </main>
+<div class="container">
+  <!-- 사이드바 -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>예모도로</h2>
+      <span id="user-badge" class="user-badge">Guest</span>
     </div>
 
-    <script src="script.js"></script>
+    <div id="category-list" class="menu-group"></div>
+
+    <button id="add-category-btn" class="add-btn">+ 카테고리 추가</button>
+
+    <button onclick="login()" class="add-btn">로그인</button>
+    <button onclick="signup()" class="add-btn">회원가입</button>
+
+    <div class="sidebar-footer">
+      <div class="timer-controls">
+        <span id="mini-time-display">25:00</span>
+        <button id="btn-play-mini"><i class="fa fa-play"></i></button>
+        <button id="btn-reset-mini"><i class="fa fa-rotate-right"></i></button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="main-content">
+    <header class="top-header">
+      <div id="current-category-title">
+        <span class="dot green"></span> 카테고리 선택 대기중
+      </div>
+      <button id="delete-category-btn"><i class="fa fa-trash"></i></button>
+    </header>
+
+    <section class="dashboard-grid">
+
+      <div class="stat-card area-total">
+        <h3>총 누적 시간</h3>
+        <div id="total-time">0시간 0분</div>
+      </div>
+
+      <div class="stat-card area-today">
+        <h3>오늘 집중</h3>
+        <div id="today-time">0시간 0분</div>
+      </div>
+
+      <div class="daily-card area-daily">
+        <h3>오늘 하루 기록</h3>
+        <div class="daily-ring-wrapper">
+          <div id="daily-ring" class="daily-ring"></div>
+          <div class="daily-center">
+            <div id="daily-total" class="daily-total">0분</div>
+            <div class="daily-label">오늘 집중</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="heatmap-card area-map">
+        <h3>활동 기록 (최근 100일)</h3>
+        <div id="heatmap-grid" class="heatmap-grid"></div>
+      </div>
+
+      <div class="donut-card area-timer">
+        <div class="donut-wrapper">
+          <div id="main-time-display" class="big-timer">25:00</div>
+          <div class="visual-timer-container">
+            <div id="visual-timer" class="visual-timer"></div>
+            <div class="visual-timer-cover"></div>
+          </div>
+        </div>
+        <div id="timer-message">카테고리를 선택하세요</div>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<script type="module" src="firebase.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>
