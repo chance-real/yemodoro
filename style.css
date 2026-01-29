@@ -1,4 +1,4 @@
-/* style.css - 최종 수정본 */
+/* style.css - 수정본 */
 
 /* 1. 기본 초기화 */
 * {
@@ -11,9 +11,17 @@
 body {
     background-color: #0f1014;
     color: white;
-    height: 100vh; /* 화면 전체 높이 고정 */
+    min-height: 100vh; /* 전체 최소 높이 */
+    /* body는 더이상 flex 컨테이너가 아님 */
+    overflow: hidden; /* 전체 레이아웃 바깥 스크롤 방지 (container 내부에서 관리) */
+}
+
+/* 컨테이너: 사이드바 + 메인 영역을 가로로 배치 */
+.container {
     display: flex;
-    overflow: hidden; /* 스크롤 아예 막음 */
+    height: 100vh; /* 화면 전체 높이 차지 */
+    width: 100%;
+    min-width: 0; /* 자식 overflow 제어를 위해 필요 */
 }
 
 /* 2. 사이드바 */
@@ -26,13 +34,14 @@ body {
     border-right: 1px solid #2c2c2c;
     flex-shrink: 0;
     z-index: 10;
+    min-height: 0;
 }
 
 .sidebar-header { margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
 .sidebar-header h2 { color: #ff4b4b; font-size: 20px; margin: 0; font-weight: 700; }
 .user-badge { font-size: 11px; background: #333; padding: 4px 10px; border-radius: 12px; color: #aaa; }
 
-.menu-group { flex: 1; overflow-y: auto; margin-bottom: 20px; }
+.menu-group { flex: 1; overflow-y: auto; margin-bottom: 20px; min-height: 0; }
 .menu-item {
     padding: 14px; color: #888; cursor: pointer; border-radius: 10px; margin-bottom: 6px;
     display: flex; align-items: center; gap: 10px; font-size: 15px; transition: 0.2s;
@@ -56,14 +65,16 @@ body {
 .timer-controls span { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 18px; }
 .timer-controls button { background: none; border: none; color: #ff4b4b; cursor: pointer; font-size: 16px; padding: 4px; }
 
-/* 3. 메인 영역 (여기가 문제였음: Flex로 남은 공간 꽉 채우기) */
+/* 3. 메인 영역 (Flex로 남은 공간 꽉 채우기) */
 .main-content {
-    flex: 1; /* 남은 공간 차지 */
+    flex: 1; /* 남은 가로 공간 차지 */
     padding: 30px;
     display: flex;
     flex-direction: column;
-    height: 100vh; /* 부모 높이 상속 */
+    height: 100%; /* 부모(.container) 높이 상속 */
     min-width: 0; 
+    min-height: 0; /* 내부 스크롤이 정상 동작하도록 */
+    overflow: auto; /* 메인 내부 스크롤 허용 */
 }
 
 /* 상단 헤더 */
@@ -80,22 +91,15 @@ body {
 }
 .header-icons button:hover { color: #ff4b4b; }
 
-/* 🔥🔥 [핵심 수정] 그리드 레이아웃 🔥🔥 
-   - 절대 짤리지 않게 flex: 1 사용
-   - 왼쪽(통계,맵) vs 오른쪽(타이머) 구조로 변경
-*/
+/* 그리드 레이아웃 */
 .dashboard-grid {
     display: grid;
-    flex: 1; /* 남은 높이 무조건 다 씀 */
-    min-height: 0; /* 내용 넘쳐도 짤리지 않게 내부 스크롤 처리용 */
-    
-    /* 3개 열: [통계1] [통계2] [타이머(넓게)] */
+    flex: 1; /* 남은 높이 모두 사용 */
+    min-height: 0; /* 중요: 내부 스크롤/자식 잘림 방지 */
+    min-width: 0;
+
     grid-template-columns: 1fr 1fr 1.4fr;
-    
-    /* 2개 행: [상단카드높이] [나머지전부] */
     grid-template-rows: 150px 1fr;
-    
-    /* 영역 배치 */
     grid-template-areas: 
         "total today timer"
         "map   map   timer";
@@ -114,6 +118,7 @@ body {
     border-radius: 20px; 
     border: 1px solid #25262b;
     overflow: hidden; /* 내용 튀어나감 방지 */
+    min-height: 0;
 }
 
 /* 1, 2번 카드: 시간 통계 */
@@ -191,6 +196,10 @@ body {
 
 /* 모바일/태블릿 대응 (화면 좁을때만 세로로) */
 @media (max-width: 900px) {
+    .container { flex-direction: column; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #2c2c2c; }
+    .main-content { padding: 16px; }
+
     .dashboard-grid {
         grid-template-columns: 1fr 1fr;
         grid-template-rows: auto auto 1fr;
@@ -198,8 +207,7 @@ body {
             "total today"
             "map   map"
             "timer timer";
-        overflow-y: auto; /* 여기만 스크롤 허용 */
-        display: block; /* 좁으면 블록으로 풀기 */
+        gap: 15px;
     }
     .stat-card, .heatmap-card { margin-bottom: 15px; min-height: 150px; }
     .donut-card { height: 400px; }
