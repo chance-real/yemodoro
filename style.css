@@ -1,0 +1,198 @@
+/* 기본 설정 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+    background-color: #0f1014;
+    color: white;
+    height: 100vh; /* 화면 전체 높이 사용 */
+    display: flex;
+    overflow: hidden; /* 스크롤바 완전히 제거 */
+}
+
+/* 사이드바 스타일 (기존 유지하되 높이 꽉 채움) */
+.sidebar {
+    width: 260px;
+    background-color: #16171b;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #2c2c2c;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.sidebar-header { margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
+.sidebar-header h2 { color: #ff4b4b; font-size: 20px; margin: 0; font-weight: 700; }
+.user-badge { font-size: 11px; background: #333; padding: 4px 10px; border-radius: 12px; color: #aaa; }
+
+.menu-group { flex: 1; overflow-y: auto; margin-bottom: 20px; }
+.menu-item {
+    padding: 14px; color: #888; cursor: pointer; border-radius: 10px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px; font-size: 15px; transition: 0.2s;
+}
+.menu-item:hover { background-color: #25262b; color: #ddd; }
+.menu-item.active { background-color: #2c2c2c; color: white; font-weight: 600; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.green { background-color: #4caf50; }
+
+.add-btn {
+    padding: 12px; background: #222; border: 1px dashed #444;
+    color: #777; cursor: pointer; border-radius: 10px; width: 100%; font-size: 14px; transition: 0.2s;
+}
+.add-btn:hover { border-color: #777; color: #ccc; }
+
+.sidebar-footer { margin-top: auto; }
+.timer-controls {
+    background: #202125; border-radius: 14px; padding: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.timer-controls span { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 18px; }
+.timer-controls button { background: none; border: none; color: #ff4b4b; cursor: pointer; font-size: 16px; padding: 4px; }
+
+/* 메인 영역 스타일 */
+.main-content {
+    flex: 1;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #0f1014;
+}
+
+/* 상단 헤더 */
+.top-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; height: 40px; flex-shrink: 0;
+}
+.user-status { font-size: 18px; font-weight: 600; color: #eee; }
+.header-icons button { 
+    background: none; border: none; color: #555; cursor: pointer; font-size: 18px; 
+    transition: 0.2s;
+}
+.header-icons button:hover { color: #ff4b4b; }
+
+/* 🔥 대시보드 그리드 (핵심 수정) */
+.dashboard-grid {
+    display: grid;
+    /* 상단 통계 영역(높이 자동) / 하단 타이머 영역(나머지 전부) */
+    grid-template-rows: auto 1fr; 
+    /* 가로 3등분: 통계1, 통계2, 히트맵(넓게) */
+    grid-template-columns: 1fr 1fr 2fr; 
+    grid-template-areas: 
+        "total today map"
+        "timer timer timer";
+    gap: 20px;
+    height: 100%; /* 부모 높이 꽉 채움 */
+    overflow: hidden; /* 내부 스크롤 방지 */
+}
+
+/* 영역 할당 */
+.area-total { grid-area: total; }
+.area-today { grid-area: today; }
+.area-map   { grid-area: map; }
+.area-timer { grid-area: timer; }
+
+/* 카드 공통 스타일 */
+.stat-card, .heatmap-card {
+    background-color: #18191d; border-radius: 16px; padding: 24px;
+    display: flex; flex-direction: column; justify-content: center;
+    border: 1px solid #25262b;
+}
+
+.stat-card h3 { font-size: 14px; color: #777; margin-bottom: 10px; font-weight: 500; }
+.stat-card .time-text { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+
+/* 히트맵 스타일 */
+.heatmap-header h3 { font-size: 14px; color: #777; margin-bottom: 12px; }
+.heatmap-grid {
+    display: grid; 
+    grid-template-columns: repeat(20, 1fr); 
+    grid-template-rows: repeat(5, 1fr);
+    gap: 4px; 
+    width: 100%; flex: 1; /* 남은 공간 채우기 */
+}
+.heatmap-cell { background-color: #25262b; border-radius: 2px; width: 100%; height: 100%; }
+.heatmap-cell.active { background-color: #4caf50; box-shadow: 0 0 5px rgba(76, 175, 80, 0.4); }
+.heatmap-cell.today { border: 1px solid white; }
+
+/* 🔥 메인 타이머 카드 (화면 중앙에 꽉 차게) */
+.donut-card {
+    background-color: #18191d; border-radius: 24px;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    position: relative;
+    border: 1px solid #25262b;
+    /* 그리드 영역 꽉 채우기 */
+    width: 100%; height: 100%; 
+}
+
+.expand-btn {
+    position: absolute; top: 30px; right: 30px;
+    background: none; border: none; color: #444; font-size: 22px; cursor: pointer; z-index: 20;
+    transition: 0.2s;
+}
+.expand-btn:hover { color: white; }
+
+/* 타이머 원형 크기 조절 (vmin 사용으로 반응형 처리) */
+.donut-wrapper {
+    position: relative; 
+    /* 화면의 가로/세로 중 작은 쪽의 45% 크기로 설정 -> 절대 잘리지 않음 */
+    width: 45vmin; height: 45vmin; 
+    display: flex; justify-content: center; align-items: center;
+}
+
+.big-timer-display { 
+    position: absolute; 
+    /* 폰트 크기도 화면 비율에 맞춤 */
+    font-size: 8vmin; 
+    font-weight: 700; z-index: 10; font-variant-numeric: tabular-nums; 
+}
+
+.visual-timer-container {
+    width: 100%; height: 100%; border-radius: 50%; position: relative;
+    background: #25262b;
+    box-shadow: 0 0 30px rgba(0,0,0,0.2); /* 은은한 그림자 */
+}
+.visual-timer {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: conic-gradient(#ff4b4b 0deg, transparent 0deg);
+    transition: background 1s linear;
+}
+.visual-timer-cover {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 88%; height: 88%; /* 두께 조절 */
+    background-color: #18191d; border-radius: 50%;
+}
+.timer-message { margin-top: 40px; color: #666; font-size: 16px; font-weight: 500; }
+
+/* 노트북 등 화면이 작을 때 레이아웃 변경 */
+@media (max-width: 1000px) {
+    .dashboard-grid {
+        grid-template-rows: auto auto 1fr;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "total today"
+            "map map"
+            "timer timer";
+    }
+    .donut-wrapper { width: 40vmin; height: 40vmin; }
+    .big-timer-display { font-size: 7vmin; }
+}
+
+/* 전체화면 모드 */
+body.fullscreen .sidebar, body.fullscreen .top-header, 
+body.fullscreen .stat-card, body.fullscreen .heatmap-card { display: none !important; }
+
+body.fullscreen .main-content { padding: 0; }
+body.fullscreen .dashboard-grid { 
+    display: block; width: 100vw; height: 100vh; margin: 0; 
+}
+body.fullscreen .donut-card { 
+    width: 100%; height: 100%; border-radius: 0; border: none;
+}
+body.fullscreen .donut-wrapper { width: 60vmin; height: 60vmin; }
+body.fullscreen .big-timer-display { font-size: 12vmin; }
