@@ -1,178 +1,131 @@
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
-  background: #0f1014;
-  color: white;
-}
-
-.container {
+  margin: 0;
+  background: #0b0c10;
+  color: #fff;
   display: flex;
   height: 100vh;
 }
 
 /* 사이드바 */
 .sidebar {
-  width: 260px;
-  background: #16171b;
-  padding: 20px;
+  width: 220px;
+  padding: 24px;
+  background: #111;
   display: flex;
   flex-direction: column;
+  gap: 16px;
 }
 
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
+.logo {
+  margin: 0;
 }
 
-.menu-group {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.menu-item {
-  padding: 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.user {
   color: #aaa;
+  font-size: 14px;
 }
 
-.menu-item.active {
-  background: #2c2c2c;
-  color: white;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.add-btn {
-  margin-top: 10px;
+.side-btn {
   padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
   background: #222;
-  border: 1px dashed #444;
-  color: #777;
-  border-radius: 10px;
+  color: #fff;
+}
+
+.side-btn:hover {
+  background: #333;
+}
+
+.hidden {
+  display: none;
 }
 
 /* 메인 */
-.main-content {
+.main {
   flex: 1;
-  padding: 24px;
-  overflow: auto;
-}
-
-.top-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.dashboard-grid {
+  padding: 32px;
   display: grid;
-  gap: 20px;
-  grid-template-columns: 1fr 1fr 1.4fr;
-  grid-template-rows: 140px 260px 1fr;
-  grid-template-areas:
-    "total today timer"
-    "daily daily timer"
-    "map map timer";
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
 }
 
-.area-total { grid-area: total; }
-.area-today { grid-area: today; }
-.area-daily { grid-area: daily; }
-.area-map { grid-area: map; }
-.area-timer { grid-area: timer; }
-
-.stat-card, .daily-card, .heatmap-card, .donut-card {
-  background: #18191d;
+.card {
+  background: #111;
   border-radius: 20px;
-  padding: 20px;
-  border: 1px solid #25262b;
+  padding: 24px;
 }
 
-/* 하루 원형 */
-.daily-ring-wrapper {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  margin: auto;
-}
-
-.daily-ring {
-  width: 100%;
-  height: 100%;
+.circle {
+  margin-top: 16px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
-  background: #25262b;
+  border: 10px solid #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
 }
 
-.daily-ring::after {
-  content: "";
-  position: absolute;
-  inset: 14%;
-  background: #18191d;
-  border-radius: 50%;
-}
-
-.daily-center {
-  position: absolute;
+/* 로그인 모달 */
+.modal {
+  position: fixed;
   inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-card {
+  background: #111;
+  padding: 32px;
+  width: 320px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  gap: 12px;
 }
 
-.daily-total {
-  font-size: 22px;
-  font-weight: bold;
+.modal-card h2 {
+  text-align: center;
 }
 
-/* 타이머 */
-.donut-wrapper {
-  position: relative;
-  width: 300px;
-  height: 300px;
-  margin: auto;
+.modal-card input {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: #222;
+  color: #fff;
 }
 
-.visual-timer-container {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: #25262b;
+.modal-card button {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
 }
 
-.visual-timer {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: conic-gradient(#ff4b4b 0deg, transparent 0deg);
+.modal-card button.ghost {
+  background: transparent;
+  color: #aaa;
 }
 
-.visual-timer-cover {
-  position: absolute;
-  inset: 10%;
-  background: #18191d;
-  border-radius: 50%;
+.modal-card button.google {
+  background: #1a73e8;
+  color: #fff;
 }
 
-.big-timer {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48px;
+.divider {
+  text-align: center;
+  font-size: 12px;
+  color: #777;
 }
