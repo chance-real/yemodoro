@@ -10,7 +10,9 @@
 <header class="top">
   <h1>예모도로</h1>
   <div class="auth">
-    <button id="logoutBtn">로그아웃</button>
+    <img id="userProfile" class="profile-img hidden" src="" alt="프로필" />
+    <span id="userName" class="user-name hidden"></span>
+    <button id="authBtn">Google 로그인</button>
   </div>
 </header>
 
@@ -19,7 +21,8 @@
     <h2>카테고리</h2>
     <div id="categoryList"></div>
     <div class="add-cat">
-      <input id="categoryInput" placeholder="카테고리" /> <button id="addCategoryBtn">추가</button>
+      <input id="categoryInput" placeholder="카테고리" /> 
+      <button id="addCategoryBtn">추가</button>
     </div>
   </section>
 
@@ -27,6 +30,7 @@
     <div id="currentCategory">예모도로(기본_25분)</div>
     <div id="timer">25:00</div>
     <canvas id="ring" width="260" height="260"></canvas>
+    
     <div class="controls">
       <button id="startBtn">시작</button>
       <button id="stopBtn">정지</button>
@@ -37,8 +41,39 @@
       <button id="setTimeBtn">시간 설정</button>
     </div>
   </section>
+
+  <section class="card tracker-container">
+    <h2>하루 기록 & 캘린더</h2>
+    
+    <div class="daily-ring-wrapper">
+      <canvas id="dailyRing" width="440" height="440"></canvas>
+      <div id="todayDate" class="today-date"></div>
+    </div>
+
+    <div class="calendar-wrapper">
+      <div class="cal-header">
+        <div id="calTitle" class="cal-title">2026. 01</div>
+        <div class="cal-nav">
+          <button id="prevMonthBtn">◀</button>
+          <button id="nextMonthBtn">▶</button>
+        </div>
+      </div>
+      
+      <div class="cal-grid" style="margin-bottom: 6px;">
+        <div class="day-name">월</div>
+        <div class="day-name">화</div>
+        <div class="day-name">수</div>
+        <div class="day-name">목</div>
+        <div class="day-name">금</div>
+        <div class="day-name">토</div>
+        <div class="day-name">일</div>
+      </div>
+      
+      <div id="calGrid" class="cal-grid"></div>
+    </div>
+  </section>
 </main>
 
-<script src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>

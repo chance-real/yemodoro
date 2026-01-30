@@ -11,6 +11,8 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #1b1b1b, #0b0b0b);
   color: #f5f5f7;
+  height: 100vh;
+  overflow: hidden; /* 화면 고정 */
 }
 
 .hidden {
@@ -25,6 +27,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 20px 32px;
+  height: 80px;
 }
 
 .top h1 {
@@ -34,17 +37,35 @@ body {
 
 .auth {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-name {
+  font-size: 14px;
+  color: #e0e0e0;
+  font-weight: 500;
+  margin-right: 4px;
 }
 
 /* ===============================
-   Layout
+   Layout (3단 구조 변경)
 =============================== */
 .layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 32px;
-  padding: 32px;
+  /* 좌측(카테고리) - 중앙(타이머) - 우측(트래커) */
+  grid-template-columns: 300px 1fr 340px; 
+  gap: 24px;
+  padding: 0 32px 32px 32px;
+  height: calc(100vh - 80px);
 }
 
 .card {
@@ -54,32 +75,39 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),
     0 20px 40px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; /* 내용 많으면 스크롤 */
 }
 
 .card h2 {
   font-size: 16px;
   color: #b0b0b0;
+  margin-top: 0;
+  margin-bottom: 20px;
 }
 
 /* ===============================
-   Category
+   Category (Left)
 =============================== */
 #categoryList {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
 }
 
 .category-item {
   display: flex;
   align-items: center;
   border-radius: 12px;
-  position: relative; /* 팝업 위치 기준 */
+  position: relative;
+  transition: all 0.2s ease;
 }
 
 .category-btn {
   flex: 1;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: none;
   font-weight: 600;
   color: #fff;
@@ -87,27 +115,33 @@ body {
   border-top-left-radius: 12px;
   border-bottom-left-radius: 12px;
   text-align: left;
-  /* 텍스트 넘침 처리 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: none;
+  transition: all 0.18s ease;
+}
+
+.category-btn.active {
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.06);
 }
 
 .category-settings {
   width: 40px;
-  height: 100%; /* 버튼 높이 맞춤 */
-  background: rgba(0,0,0,0.3);
+  height: 100%;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-top-right-radius: 12px;
-  border-bottom-right-radius: 12px;
   font-size: 18px;
+  margin-left: 2px;
+  transition: transform 0.2s;
 }
 
 .category-settings:hover {
-  background: rgba(0,0,0,0.5);
+  transform: rotate(90deg);
 }
 
 .add-cat {
@@ -118,69 +152,23 @@ body {
 
 #categoryInput {
   flex: 1;
-}
-
-/* ===============================
-   Category Settings Panel (팝업)
-=============================== */
-.settings-panel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  background: #2c2c2e;
-  border: 1px solid #3a3a3c;
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 9999;
-  width: 200px;
-}
-
-.settings-row {
-  display: flex;
-  gap: 8px;
-}
-
-.settings-panel input[type="text"] {
-  width: 100%;
-  padding: 8px;
-  font-size: 14px;
-}
-
-.settings-panel input[type="color"] {
-  flex: 1;
-  height: 36px;
+  padding: 10px;
+  border-radius: 10px;
   border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.settings-btn {
-  flex: 1;
-  font-size: 12px;
-  padding: 8px;
-}
-
-.btn-delete {
-  background: #ff453a;
+  background: #2c2c2e;
   color: white;
 }
-.btn-save {
-  background: #30d158;
-  color: black;
+
+#addCategoryBtn {
+  padding: 10px 16px;
 }
 
 /* ===============================
-   Timer Center
+   Main Timer (Center)
 =============================== */
 .center {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 #currentCategory {
@@ -190,22 +178,12 @@ body {
 }
 
 #timer {
-  font-size: 88px;
+  font-size: 100px;
   font-weight: 700;
-  margin: 12px 0 20px;
+  margin: 12px 0 30px;
+  font-variant-numeric: tabular-nums; /* 숫자 너비 고정 */
 }
 
-/* ===============================
-   Canvas Ring
-=============================== */
-canvas {
-  margin: 20px 0;
-  /* 기본 그림자는 JS에서 제어 */
-}
-
-/* ===============================
-   Controls
-=============================== */
 .controls {
   display: flex;
   gap: 10px;
@@ -220,13 +198,205 @@ button {
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
 button:hover {
   background: #3a3a3c;
 }
 
-input {
+/* ===============================
+   Tracker (Right) - NEW
+=============================== */
+.tracker-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+/* 1. Daily Ring (24h) */
+.daily-ring-wrapper {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#dailyRing {
+  width: 220px;
+  height: 220px;
+}
+
+.today-date {
+  position: absolute;
+  font-size: 14px;
+  color: #b0b0b0;
+  font-weight: 500;
+}
+
+/* 2. Monthly Calendar */
+.calendar-wrapper {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f5f5f7;
+}
+
+.cal-nav button {
+  padding: 4px 8px;
+  font-size: 12px;
+  background: transparent;
+  color: #888;
+}
+.cal-nav button:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+/* 요일 헤더 */
+.day-name {
+  text-align: center;
+  font-size: 10px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+/* 날짜 블록 */
+.day-block {
+  aspect-ratio: 1; /* 정사각형 */
+  border-radius: 4px;
+  background: #2c2c2e;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.day-block:hover {
+  transform: scale(1.1);
+  z-index: 2;
+}
+
+.day-block.empty {
+  background: transparent;
+  pointer-events: none;
+}
+
+/* 오늘 날짜 표시 (테두리) */
+.day-block.today {
+  border: 1px solid rgba(255,255,255,0.5);
+}
+
+/* ===============================
+   Settings Panel
+=============================== */
+.settings-panel {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 12px;
+  background: #2c2c2e;
+  border: 1px solid #3a3a3c;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 9999;
+  width: 220px;
+}
+
+.settings-panel::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: -6px;
+  width: 12px;
+  height: 12px;
+  background: #2c2c2e;
+  border-left: 1px solid #3a3a3c;
+  border-bottom: 1px solid #3a3a3c;
+  transform: rotate(45deg);
+}
+
+.settings-label {
+  font-size: 12px;
+  color: #b0b0b0;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.settings-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-panel input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  background: #1c1c1e;
+  border: 1px solid #3a3a3c;
+  color: white;
+  border-radius: 6px;
+}
+
+.settings-panel input[type="color"] {
+  width: 100%;
+  height: 40px;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.settings-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-confirm { background: #0a84ff; color: white; }
+.btn-confirm:hover { background: #0071e3; }
+.btn-cancel { background: #3a3a3c; color: #e5e5e5; }
+.btn-cancel:hover { background: #48484a; }
+.btn-delete { background: transparent; border: 1px solid #ff453a; color: #ff453a; margin-top: 4px; }
+.btn-delete:hover { background: rgba(255, 69, 58, 0.1); }
+
+/* ===============================
+   Canvas (Main)
+=============================== */
+#ring {
+  margin: 20px 0;
+}
+input[type="number"] {
   width: 80px;
   padding: 10px;
   border-radius: 10px;
@@ -234,26 +404,4 @@ input {
   background: #1f1f1f;
   color: #fff;
   text-align: center;
-}
-
-/* ===============================
-   Finish Animation
-=============================== */
-@keyframes pop {
-  0% { transform: scale(1); opacity: 1; }
-  60% { transform: scale(1.15); }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-
-.pop {
-  animation: pop 0.8s ease-out forwards;
-}
-
-#ring {
-  display: block;
-  margin: 0 auto;
-}
-
-canvas.running {
-  transition: filter 0.3s ease;
 }
