@@ -6,18 +6,17 @@ import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstati
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* ===============================
-   Sound Effects (New)
+   Sound Effects
 =============================== */
-// 오디오 파일 로드 (파일명을 정확히 매칭)
+// 오디오 파일 로드
 const clickSound = new Audio('computer-mouse-click-351398.mp3');
 const alarmSound = new Audio('bellding-254774.mp3');
 
-// 사운드 재생 함수 (반응속도 최적화)
+// 사운드 재생 함수
 function playClickSound() {
-  // 연속 클릭 시 소리가 끊기지 않도록 복제해서 재생
   const sound = clickSound.cloneNode();
-  sound.volume = 0.6; // 너무 시끄럽지 않게 볼륨 조절
-  sound.play().catch(() => {}); // 자동재생 차단 예외처리
+  sound.volume = 0.6;
+  sound.play().catch(() => {});
 }
 
 function playAlarmSound() {
@@ -25,11 +24,9 @@ function playAlarmSound() {
   alarmSound.play().catch(e => console.log("알림음 재생 실패:", e));
 }
 
-// ✅ [핵심] 글로벌 클릭 리스너: "클릭 가능한 요소"만 감지하여 소리 재생
+// 글로벌 클릭 리스너
 document.addEventListener('click', (e) => {
-  // 클릭된 요소가 인터랙티브한 요소인지 확인 (버튼, 인풋, 설정아이콘, 날짜블록 등)
   const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn');
-  
   if (target) {
     playClickSound();
   }
@@ -65,9 +62,12 @@ const nextMonthBtn = document.getElementById("nextMonthBtn");
 
 // Focus Mode & New Controls
 const focusToggleBtn = document.getElementById("focusToggleBtn");
-const mainActionBtn = document.getElementById("mainActionBtn"); // 시작/정지 통합 버튼
+const mainActionBtn = document.getElementById("mainActionBtn"); 
 const resetBtn = document.getElementById("resetBtn");
 const setTimeBtn = document.getElementById("setTimeBtn");
+
+// Tooltip Element
+const tooltipEl = document.getElementById("tooltip");
 
 /* ===============================
    State Variables
@@ -92,6 +92,38 @@ let todayLog = { sessions: [], totals: {} };
 let currentCalDate = new Date(); 
 
 /* ===============================
+   Tooltip Logic (Global)
+=============================== */
+function showTooltip(text, x, y) {
+  tooltipEl.textContent = text;
+  tooltipEl.classList.remove("hidden");
+  moveTooltip(x, y);
+}
+
+function moveTooltip(x, y) {
+  // 툴팁 위치 조정 (마우스 커서에서 약간 떨어지게)
+  const offset = 15;
+  let left = x + offset;
+  let top = y + offset;
+
+  // 화면 밖으로 나가지 않게 조정
+  const rect = tooltipEl.getBoundingClientRect();
+  if (left + rect.width > window.innerWidth) {
+    left = x - rect.width - offset;
+  }
+  if (top + rect.height > window.innerHeight) {
+    top = y - rect.height - offset;
+  }
+
+  tooltipEl.style.left = `${left}px`;
+  tooltipEl.style.top = `${top}px`;
+}
+
+function hideTooltip() {
+  tooltipEl.classList.add("hidden");
+}
+
+/* ===============================
    Core Function: Save Categories
 =============================== */
 async function saveUserCategories() {
@@ -101,7 +133,7 @@ async function saveUserCategories() {
       list: categories
     });
   } catch(e) {
-    console.error("카테고리 저장 실패 (권한을 확인하세요):", e);
+    console.error("카테고리 저장 실패:", e);
   }
 }
 
@@ -231,7 +263,8 @@ function openSettings(cat, triggerElement) {
     if (todayLog && todayLog.sessions) {
       todayLog.sessions.forEach(session => {
         if (session.catId === cat.id) {
-          session.color = cat.color; 
+          session.color = cat.color;
+          session.name = cat.name; // 이름도 업데이트
           logUpdated = true;
         }
       });
@@ -263,7 +296,7 @@ function openSettings(cat, triggerElement) {
   deleteBtn.className = "settings-btn btn-delete";
   deleteBtn.textContent = "카테고리 삭제";
   deleteBtn.onclick = () => {
-    if(confirm("정말 이 카테고리를 삭제하시겠습니까?")) {
+    if(confirm("정말 이 카테고리를 삭제하시겠습니까?\n(과거 기록은 유지됩니다)")) {
       categories = categories.filter(c => c.id !== cat.id);
       if (activeCategory.id === cat.id) {
         activeCategory = { ...defaultCategory };
@@ -310,7 +343,6 @@ document.addEventListener("mousedown", (e) => {
 function toggleFocusMode() {
   document.body.classList.toggle("focus-mode");
   const isFocus = document.body.classList.contains("focus-mode");
-  
   focusToggleBtn.textContent = isFocus ? "✕" : "⛶";
 }
 
@@ -332,7 +364,6 @@ function updateTimer() {
   if (remainingSeconds <= 0) {
     stopTimerLogic(); 
     remainingSeconds = 0;
-    // ✅ 타이머 종료 시 알림음 재생
     playAlarmSound();
   }
   
@@ -367,26 +398,33 @@ function trackCurrentSecond() {
   const lastSession = todayLog.sessions[todayLog.sessions.length - 1];
   const currentTime = now.getTime();
   
+  // 같은 카테고리로 1.5초 이내 연속 기록이면 시간 연장
   if (lastSession && 
       lastSession.catId === activeCategory.id && 
       (currentTime - lastSession.end) < 1500) {
     lastSession.end = currentTime; 
+    // 색상과 이름 최신화 (삭제 대비)
+    lastSession.color = activeCategory.color;
+    lastSession.name = activeCategory.name;
   } else {
+    // 새 세션 시작 시, 현재의 이름과 색상을 스냅샷으로 저장
     todayLog.sessions.push({
       catId: activeCategory.id,
       color: activeCategory.color,
+      name: activeCategory.name, // [중요] 이름 저장 (삭제되어도 기록 남음)
       start: currentTime,
       end: currentTime
     });
   }
 
+  // 총 시간 업데이트
   if (!todayLog.totals[activeCategory.id]) {
     todayLog.totals[activeCategory.id] = 0;
   }
   todayLog.totals[activeCategory.id] += 1;
 
   drawDailyRing();
-  updateTodayCalendarBlock();
+  updateTodayCalendarBlock(); // 실시간 캘린더 색상 업데이트 (즉시 반영)
 }
 
 function renderTime() {
@@ -468,8 +506,14 @@ function drawRing() {
 }
 
 /* ===============================
-   Tracker: Daily 24h Ring
+   Tracker: Daily 24h Ring & Tooltip
 =============================== */
+// [UX 개선] 링 위치 및 크기 정밀 조정 (글씨 가림 해결)
+const RING_WIDTH = 40; 
+// 링을 바깥쪽으로 조금 밀어내고, 숫자 위치도 조정
+const OUTER_R = 170;   // 기존 165 -> 170 (확장)
+const INNER_R = 120;   // 기존 115 -> 120 (확장 - 중앙 텍스트와 거리 확보)
+
 function drawDailyRing() {
   const dpr = window.devicePixelRatio || 1;
   const size = 440; 
@@ -486,7 +530,8 @@ function drawDailyRing() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const numRadius = size / 2 - 15; 
+  // 숫자 위치: 링 바깥쪽으로 더 밀어냄 (205 -> 210)
+  const numRadius = size / 2 - 10; 
   for (let i = 1; i <= 12; i++) {
     const angle = (i - 3) * (Math.PI * 2) / 12;
     const x = center + Math.cos(angle) * numRadius;
@@ -494,21 +539,18 @@ function drawDailyRing() {
     ctx.fillText(i, x, y);
   }
 
-  const outerR = 175; 
-  const innerR = 135; 
-  const ringWidth = 22;
-
+  // 배경 링
   ctx.globalAlpha = 0.15;
-  ctx.lineWidth = ringWidth;
+  ctx.lineWidth = RING_WIDTH;
   ctx.lineCap = "round";
   
   ctx.beginPath();
-  ctx.arc(center, center, outerR, 0, Math.PI * 2);
+  ctx.arc(center, center, OUTER_R, 0, Math.PI * 2);
   ctx.strokeStyle = "#888"; 
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(center, center, innerR, 0, Math.PI * 2);
+  ctx.arc(center, center, INNER_R, 0, Math.PI * 2);
   ctx.strokeStyle = "#888";
   ctx.stroke();
 
@@ -517,7 +559,7 @@ function drawDailyRing() {
   todayLog.sessions.forEach(session => {
     const startDate = new Date(session.start);
     const endDate = new Date(session.end);
-    drawSessionArc(ctx, startDate, endDate, innerR, outerR, session.color, ringWidth, center);
+    drawSessionArc(ctx, startDate, endDate, INNER_R, OUTER_R, session.color, RING_WIDTH, center);
   });
 }
 
@@ -528,10 +570,11 @@ function drawSessionArc(ctx, start, end, innerR, outerR, color, width, center) {
   const startSec = (start.getTime() - dayStart.getTime()) / 1000;
   const endSec = (end.getTime() - dayStart.getTime()) / 1000;
   
-  const halfDay = 43200;
+  const halfDay = 43200; // 12시간 = 43200초
 
   const draw = (radius, s, e) => {
     if (s >= e) return;
+    // 0초 = -90도(12시 방향)
     const startAngle = (s / halfDay) * (Math.PI * 2) - (Math.PI / 2);
     const endAngle = (e / halfDay) * (Math.PI * 2) - (Math.PI / 2);
     
@@ -545,16 +588,94 @@ function drawSessionArc(ctx, start, end, innerR, outerR, color, width, center) {
     ctx.shadowBlur = 0; 
   };
 
+  // 오전 (0 ~ 12시) : Inner Ring
   if (startSec < halfDay) {
     const segEnd = Math.min(endSec, halfDay);
     draw(innerR, startSec, segEnd);
   }
 
+  // 오후 (12 ~ 24시) : Outer Ring
   if (endSec > halfDay) {
     const segStart = Math.max(startSec, halfDay);
     draw(outerR, segStart - halfDay, endSec - halfDay);
   }
 }
+
+// [UX 핵심 개선] 감도 및 인식 범위 로직 동기화
+dailyCanvas.addEventListener("mousemove", (e) => {
+  const rect = dailyCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const scaleX = dailyCanvas.width / rect.width;
+  const scaleY = dailyCanvas.height / rect.height;
+  
+  const x = mouseX * scaleX;
+  const y = mouseY * scaleY;
+  const center = dailyCanvas.width / 2; // 220
+  
+  const dx = x - center;
+  const dy = y - center;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  let angle = Math.atan2(dy, dx); 
+  
+  let chartAngle = angle + Math.PI / 2;
+  if (chartAngle < 0) chartAngle += Math.PI * 2; 
+  
+  const halfDay = 43200;
+  const secondsInRing = (chartAngle / (Math.PI * 2)) * halfDay;
+  
+  // [인식 로직 변경] 변경된 반지름에 맞춰 판정 범위 수정
+  // Inner(120), Outer(170) -> 중간값 약 145
+  let checkTime = null;
+  const SPLIT_RADIUS = 145; // 내/외측 구분선
+  const MIN_TOUCH_R = 80;   // 중앙 텍스트 침범 방지 (증가)
+  const MAX_TOUCH_R = 215;  // 캔버스 끝
+
+  if (dist > MIN_TOUCH_R && dist <= SPLIT_RADIUS) {
+    // 1. 안쪽 링 (오전)
+    checkTime = secondsInRing;
+  } else if (dist > SPLIT_RADIUS && dist < MAX_TOUCH_R) {
+    // 2. 바깥쪽 링 (오후)
+    checkTime = secondsInRing + halfDay;
+  }
+
+  if (checkTime !== null) {
+    const hoveredSession = todayLog.sessions.find(s => {
+      const dayStart = new Date(s.start);
+      dayStart.setHours(0,0,0,0);
+      const sSec = (s.start - dayStart.getTime()) / 1000;
+      const eSec = (s.end - dayStart.getTime()) / 1000;
+      return checkTime >= sSec && checkTime <= eSec;
+    });
+
+    if (hoveredSession) {
+      // 해당 부분에서만 소요된 시간 계산 (세션 길이)
+      const durationMin = Math.max(1, Math.round((hoveredSession.end - hoveredSession.start)/1000/60));
+      
+      // 카테고리 이름: 저장된 이름 우선 (삭제 대비)
+      let catName = hoveredSession.name;
+      if (!catName) {
+         const cat = categories.find(c => c.id === hoveredSession.catId);
+         catName = cat ? cat.name : "삭제된 카테고리";
+      }
+      
+      showTooltip(`${catName}\n⏱ ${durationMin}분`, e.clientX, e.clientY);
+      dailyCanvas.style.cursor = "pointer";
+    } else {
+      hideTooltip();
+      dailyCanvas.style.cursor = "crosshair";
+    }
+  } else {
+    hideTooltip();
+    dailyCanvas.style.cursor = "default";
+  }
+});
+
+dailyCanvas.addEventListener("mouseleave", () => {
+  hideTooltip();
+});
+
 
 function updateDateDisplay() {
   const now = new Date();
@@ -563,7 +684,7 @@ function updateDateDisplay() {
 }
 
 /* ===============================
-   Tracker: Monthly Calendar
+   Tracker: Monthly Calendar & Tooltip
 =============================== */
 function renderCalendar(baseDate) {
   const year = baseDate.getFullYear();
@@ -587,69 +708,129 @@ function renderCalendar(baseDate) {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const block = document.createElement("div");
     block.className = "day-block";
+    block.dataset.date = `${year}.${String(month+1).padStart(2,'0')}.${String(d).padStart(2,'0')}`;
     
+    // 기본 툴팁
+    block.dataset.tooltip = `${block.dataset.date}`; 
+
     const today = new Date();
     if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) {
       block.classList.add("today");
       block.id = "todayBlock"; 
     }
 
-    block.title = `${year}-${month+1}-${d}`;
-    loadDominantColor(year, month, d, block);
+    // 마우스 이벤트 (툴팁)
+    block.addEventListener("mousemove", (e) => {
+      const tip = block.dataset.tooltip || block.dataset.date;
+      showTooltip(tip, e.clientX, e.clientY);
+    });
+    block.addEventListener("mouseleave", () => {
+      hideTooltip();
+    });
+
+    // 비동기 데이터 로드 및 적용
+    loadAndApplyDailyData(year, month, d, block);
     calGrid.appendChild(block);
   }
 }
 
-async function loadDominantColor(year, month, day, blockElement) {
+async function loadAndApplyDailyData(year, month, day, blockElement) {
   if (!currentUser) return;
   
   const dateKey = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
   const todayKey = getTodayKey();
   
+  let data = null;
+
+  // [중요] 오늘 날짜면 DB대신 메모리의 최신 todayLog 사용 (실시간 반영 위함)
   if (dateKey === todayKey) {
-    applyDominantColor(todayLog.totals, blockElement);
-    return;
-  }
-
-  try {
-    const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (data.totals) {
-        applyDominantColor(data.totals, blockElement);
+    data = todayLog;
+  } else {
+    try {
+      const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        data = docSnap.data();
       }
-    }
-  } catch (e) {
-    // console.error("Error loading date color:", e); // 조용히 실패
-  }
-}
-
-function applyDominantColor(totals, element) {
-  if (!totals || Object.keys(totals).length === 0) return;
-  
-  let maxSec = -1;
-  let maxCatId = null;
-  
-  for (const [catId, sec] of Object.entries(totals)) {
-    if (sec > maxSec) {
-      maxSec = sec;
-      maxCatId = catId;
+    } catch (e) {
+      // 에러 무시
     }
   }
 
-  if (maxCatId) {
-    const cat = categories.find(c => c.id === maxCatId);
-    if (cat) {
-      element.style.background = cat.color;
+  if (data && data.totals && Object.keys(data.totals).length > 0) {
+    // 가장 오래한 카테고리 찾기
+    let maxSec = -1;
+    let maxCatId = null;
+    let totalDaySec = 0; // 하루 총 집중 시간 (필요시 사용)
+
+    for (const [catId, sec] of Object.entries(data.totals)) {
+      if (sec > maxSec) {
+        maxSec = sec;
+        maxCatId = catId;
+      }
+      totalDaySec += sec; // 전체 시간 합산
     }
+
+    if (maxCatId) {
+      // 1. 현재 카테고리 목록에서 검색
+      let catName = "";
+      let catColor = "";
+      
+      const liveCat = categories.find(c => c.id === maxCatId);
+      
+      if (liveCat) {
+        catName = liveCat.name;
+        catColor = liveCat.color;
+      } else {
+        // 2. 목록에 없으면(삭제됨), 로그의 세션 기록에서 정보 추출 (복원)
+        if (data.sessions) {
+          const session = data.sessions.find(s => s.catId === maxCatId);
+          if (session) {
+            catColor = session.color || "#666"; // 색상 복원
+            catName = session.name || "삭제된 카테고리"; // 이름 복원
+          }
+        }
+      }
+      if(!catName) catName = "알 수 없음";
+
+      // 색상 적용
+      if (catColor) {
+        blockElement.style.background = catColor;
+      }
+
+      // [요청 사항 해결] 툴팁 정보: 날짜 + 총 해당 카테고리 소모 시간 + 해당 카테고리 이름
+      // *주의: 해당 카테고리의 '총 시간'을 표시합니다.
+      
+      const mainHours = Math.floor(maxSec / 3600);
+      const mainMinutes = Math.floor((maxSec % 3600) / 60);
+      
+      // 포맷:
+      // 2026.01.30
+      // 10시간 20분
+      // 공부
+      
+      let timeStr = "";
+      if (mainHours > 0) timeStr += `${mainHours}시간 `;
+      timeStr += `${mainMinutes}분`;
+
+      blockElement.dataset.tooltip = 
+        `${blockElement.dataset.date}\n` +
+        `⏱ ${timeStr}\n` +
+        `${catName}`;
+    }
+  } else {
+      // 데이터가 없는 날
+      blockElement.dataset.tooltip = `${blockElement.dataset.date}\n기록 없음`;
+      blockElement.style.background = "#3a3a3c"; // 기본색 복원
   }
 }
 
 function updateTodayCalendarBlock() {
   const block = document.getElementById("todayBlock");
+  // 오늘 날짜 블록이 있으면 강제로 다시 계산하여 색상/툴팁 갱신
   if (block) {
-    applyDominantColor(todayLog.totals, block);
+    const now = new Date();
+    loadAndApplyDailyData(now.getFullYear(), now.getMonth(), now.getDate(), block);
   }
 }
 
@@ -675,10 +856,8 @@ async function saveTodayLog() {
   const dateKey = getTodayKey();
   try {
     await setDoc(doc(db, "users", currentUser.uid, "logs", dateKey), todayLog, { merge: true });
-    // console.log("Log Saved");
   } catch (e) {
-    console.error("로그 저장 실패 (권한을 확인하세요):", e);
-    // alert("데이터 저장이 실패했습니다. Firebase Console에서 규칙(Rules)을 확인해주세요.");
+    console.error("로그 저장 실패:", e);
   }
 }
 
