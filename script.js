@@ -6,6 +6,36 @@ import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstati
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* ===============================
+   Sound Effects (New)
+=============================== */
+// 오디오 파일 로드 (파일명을 정확히 매칭)
+const clickSound = new Audio('computer-mouse-click-351398.mp3');
+const alarmSound = new Audio('bellding-254774.mp3');
+
+// 사운드 재생 함수 (반응속도 최적화)
+function playClickSound() {
+  // 연속 클릭 시 소리가 끊기지 않도록 복제해서 재생
+  const sound = clickSound.cloneNode();
+  sound.volume = 0.6; // 너무 시끄럽지 않게 볼륨 조절
+  sound.play().catch(() => {}); // 자동재생 차단 예외처리
+}
+
+function playAlarmSound() {
+  alarmSound.currentTime = 0;
+  alarmSound.play().catch(e => console.log("알림음 재생 실패:", e));
+}
+
+// ✅ [핵심] 글로벌 클릭 리스너: "클릭 가능한 요소"만 감지하여 소리 재생
+document.addEventListener('click', (e) => {
+  // 클릭된 요소가 인터랙티브한 요소인지 확인 (버튼, 인풋, 설정아이콘, 날짜블록 등)
+  const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn');
+  
+  if (target) {
+    playClickSound();
+  }
+});
+
+/* ===============================
    DOM Elements
 =============================== */
 const categoryList = document.getElementById("categoryList");
@@ -33,6 +63,12 @@ const calGrid = document.getElementById("calGrid");
 const prevMonthBtn = document.getElementById("prevMonthBtn");
 const nextMonthBtn = document.getElementById("nextMonthBtn");
 
+// Focus Mode & New Controls
+const focusToggleBtn = document.getElementById("focusToggleBtn");
+const mainActionBtn = document.getElementById("mainActionBtn"); // 시작/정지 통합 버튼
+const resetBtn = document.getElementById("resetBtn");
+const setTimeBtn = document.getElementById("setTimeBtn");
+
 /* ===============================
    State Variables
 =============================== */
@@ -52,11 +88,22 @@ let activeSettingsPanel = null;
 
 // User & Data State
 let currentUser = null;
-let todayLog = { sessions: [], totals: {} }; // 오늘 하루 데이터
-// totals 구조: { [categoryId]: seconds, ... }
+let todayLog = { sessions: [], totals: {} }; 
+let currentCalDate = new Date(); 
 
-// Calendar State
-let currentCalDate = new Date(); // 달력 표시 기준 날짜
+/* ===============================
+   Core Function: Save Categories
+=============================== */
+async function saveUserCategories() {
+  if (!currentUser) return;
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "settings", "categories"), {
+      list: categories
+    });
+  } catch(e) {
+    console.error("카테고리 저장 실패 (권한을 확인하세요):", e);
+  }
+}
 
 /* ===============================
    Category Logic
@@ -71,7 +118,7 @@ function renderCategories() {
     btn.className = "category-btn";
     btn.textContent = cat.name;
     btn.style.background = cat.color; 
-    btn.style.textShadow = "0 1px 2px rgba(0,0,0,0.5)";
+    btn.style.textShadow = "0 1px 3px rgba(0,0,0,0.6)";
     
     if (activeCategory.id === cat.id) {
       btn.classList.add("active");
@@ -110,8 +157,11 @@ function addCategory() {
 
   categories.push(newCat);
   categoryInput.value = "";
+  
   renderCategories();
   drawRing(); 
+  
+  saveUserCategories();
 }
 
 addCategoryBtn.onclick = addCategory;
@@ -125,7 +175,7 @@ categoryInput.addEventListener("keydown", e => {
 /* ===============================
    Settings Panel
 =============================== */
-function openSettings(cat, parentItem) {
+function openSettings(cat, triggerElement) {
   if (activeSettingsPanel) {
     activeSettingsPanel.remove();
     activeSettingsPanel = null;
@@ -133,6 +183,13 @@ function openSettings(cat, parentItem) {
 
   const panel = document.createElement("div");
   panel.className = "settings-panel";
+  document.body.appendChild(panel);
+
+  const rect = triggerElement.getBoundingClientRect();
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  
+  panel.style.top = `${rect.top + scrollTop}px`;
+  panel.style.left = `${rect.right + 12}px`;
 
   const nameLabel = document.createElement("span");
   nameLabel.className = "settings-label";
@@ -170,6 +227,21 @@ function openSettings(cat, parentItem) {
     cat.name = nameInput.value || cat.name;
     cat.color = colorInput.value;
 
+    let logUpdated = false;
+    if (todayLog && todayLog.sessions) {
+      todayLog.sessions.forEach(session => {
+        if (session.catId === cat.id) {
+          session.color = cat.color; 
+          logUpdated = true;
+        }
+      });
+    }
+
+    saveUserCategories();
+    if (logUpdated && currentUser) {
+      saveTodayLog();
+    }
+
     if (activeCategory.id === cat.id) {
       activeCategory = cat;
       currentCategory.textContent = cat.name;
@@ -177,6 +249,9 @@ function openSettings(cat, parentItem) {
     }
     
     renderCategories(); 
+    drawDailyRing(); 
+    updateTodayCalendarBlock();
+
     panel.remove();
     activeSettingsPanel = null;
   };
@@ -196,6 +271,8 @@ function openSettings(cat, parentItem) {
         drawRing();
       }
       renderCategories();
+      saveUserCategories();
+      
       panel.remove();
       activeSettingsPanel = null;
     }
@@ -208,7 +285,6 @@ function openSettings(cat, parentItem) {
   panel.appendChild(btnRow); 
   panel.appendChild(deleteBtn); 
 
-  parentItem.appendChild(panel);
   activeSettingsPanel = panel;
 }
 
@@ -219,10 +295,30 @@ function toHex(colorStr) {
   return ctxCanvas.fillStyle; 
 }
 
-document.addEventListener("click", (e) => {
-  if (activeSettingsPanel && !e.target.closest(".category-item")) {
+document.addEventListener("mousedown", (e) => {
+  if (activeSettingsPanel && 
+      !activeSettingsPanel.contains(e.target) && 
+      !e.target.closest(".category-settings")) {
     activeSettingsPanel.remove();
     activeSettingsPanel = null;
+  }
+});
+
+/* ===============================
+   Focus Mode Logic
+=============================== */
+function toggleFocusMode() {
+  document.body.classList.toggle("focus-mode");
+  const isFocus = document.body.classList.contains("focus-mode");
+  
+  focusToggleBtn.textContent = isFocus ? "✕" : "⛶";
+}
+
+focusToggleBtn.onclick = toggleFocusMode;
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("focus-mode")) {
+    toggleFocusMode();
   }
 });
 
@@ -231,40 +327,51 @@ document.addEventListener("click", (e) => {
 =============================== */
 function updateTimer() {
   remainingSeconds--;
-
-  // ✅ 실시간 트래킹 로직 추가
   trackCurrentSecond();
 
   if (remainingSeconds <= 0) {
-    clearInterval(timerInterval);
-    timerInterval = null;
+    stopTimerLogic(); 
     remainingSeconds = 0;
-    canvas.classList.remove("running");
-    
-    // 타이머 종료 시 파이어베이스 저장
-    saveTodayLog();
+    // ✅ 타이머 종료 시 알림음 재생
+    playAlarmSound();
   }
   
   drawRing();
   renderTime();
 }
 
-// 1초마다 실행되어 현재 상태를 로그에 기록
+function startTimerLogic() {
+  if (!timerInterval && remainingSeconds > 0) {
+    timerInterval = setInterval(updateTimer, 1000);
+    canvas.classList.add("running");
+    mainActionBtn.textContent = "정지"; 
+    drawRing();
+  }
+}
+
+function stopTimerLogic() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    canvas.classList.remove("running");
+    mainActionBtn.textContent = "시작"; 
+    drawRing();
+    saveTodayLog();
+  }
+}
+
 function trackCurrentSecond() {
   if (!activeCategory) return;
   const now = new Date();
   
-  // 1. Session 기록 (AM/PM 링을 그리기 위함)
-  // 가장 최근 세션이 같은 카테고리이고, 시간 차이가 1.5초 이내라면 이어 붙임
   const lastSession = todayLog.sessions[todayLog.sessions.length - 1];
   const currentTime = now.getTime();
   
   if (lastSession && 
       lastSession.catId === activeCategory.id && 
       (currentTime - lastSession.end) < 1500) {
-    lastSession.end = currentTime; // 시간 연장
+    lastSession.end = currentTime; 
   } else {
-    // 새 세션 시작
     todayLog.sessions.push({
       catId: activeCategory.id,
       color: activeCategory.color,
@@ -273,16 +380,12 @@ function trackCurrentSecond() {
     });
   }
 
-  // 2. Totals 기록 (캘린더 도미넌트 컬러를 위함)
   if (!todayLog.totals[activeCategory.id]) {
     todayLog.totals[activeCategory.id] = 0;
   }
   todayLog.totals[activeCategory.id] += 1;
 
-  // 3. UI 실시간 업데이트
   drawDailyRing();
-  
-  // 오늘 날짜의 캘린더 블록 색상 업데이트 (실시간)
   updateTodayCalendarBlock();
 }
 
@@ -292,33 +395,23 @@ function renderTime() {
   timerEl.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-document.getElementById("startBtn").onclick = () => {
-  if (!timerInterval && remainingSeconds > 0) {
-    timerInterval = setInterval(updateTimer, 1000);
-    canvas.classList.add("running");
-    drawRing();
+mainActionBtn.onclick = () => {
+  if (timerInterval) {
+    stopTimerLogic();
+  } else {
+    startTimerLogic();
   }
 };
 
-document.getElementById("stopBtn").onclick = () => {
-  clearInterval(timerInterval);
-  timerInterval = null;
-  canvas.classList.remove("running");
-  drawRing();
-  saveTodayLog(); // 정지 시 저장
-};
-
-document.getElementById("resetBtn").onclick = () => {
-  clearInterval(timerInterval);
-  timerInterval = null;
+resetBtn.onclick = () => {
+  stopTimerLogic(); 
   remainingSeconds = totalSeconds;
   canvas.classList.remove("running");
   drawRing();
   renderTime();
-  saveTodayLog();
 };
 
-document.getElementById("setTimeBtn").onclick = () => {
+setTimeBtn.onclick = () => {
   const minutes = Math.min(60, Math.max(1, Number(minuteInput.value)));
   totalSeconds = minutes * 60;
   remainingSeconds = totalSeconds;
@@ -342,8 +435,8 @@ function drawRing() {
   const maxFullSeconds = 3600; 
   const progress = remainingSeconds / maxFullSeconds;
   const center = size / 2;
-  const radius = 95;
-  const lineWidth = 18;
+  const radius = 90;
+  const lineWidth = 38; 
   const color = activeCategory ? activeCategory.color : "#FF2D55";
 
   ctx.beginPath();
@@ -366,7 +459,7 @@ function drawRing() {
     ctx.lineWidth = lineWidth;
     ctx.lineCap = "round"; 
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 20; 
+    ctx.shadowBlur = 25; 
     ctx.shadowColor = color;
     ctx.stroke();
   }
@@ -379,86 +472,66 @@ function drawRing() {
 =============================== */
 function drawDailyRing() {
   const dpr = window.devicePixelRatio || 1;
-  const size = 440; // canvas pixel size (CSS: 220px)
+  const size = 440; 
   dailyCanvas.width = size;
   dailyCanvas.height = size;
-  // CSS size is controlled via style, keep canvas internal res high for sharpness
   
   const ctx = dailyCtx;
   const center = size / 2;
   
-  // Clear
   ctx.clearRect(0, 0, size, size);
 
-  // --- 1. Draw Clock Numbers ---
-  ctx.fillStyle = "#666";
-  ctx.font = "bold 16px -apple-system, sans-serif";
+  ctx.fillStyle = "#ffffff"; 
+  ctx.font = "bold 24px -apple-system, sans-serif"; 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const numRadius = size / 2 - 20; // 숫자 배치 반지름
+  const numRadius = size / 2 - 15; 
   for (let i = 1; i <= 12; i++) {
-    // 12시 = -90도, 3시 = 0도
     const angle = (i - 3) * (Math.PI * 2) / 12;
     const x = center + Math.cos(angle) * numRadius;
     const y = center + Math.sin(angle) * numRadius;
     ctx.fillText(i, x, y);
   }
 
-  // --- 2. Draw Sessions ---
-  // Inner Ring (AM): 00:00 - 11:59 -> Radius ~80 (css scale) -> ~160 (canvas scale)
-  // Outer Ring (PM): 12:00 - 23:59 -> Radius ~60 (css scale) -> ~120 (canvas scale)
-  
-  // Rings Base (Dimmed)
-  const outerR = 150; 
-  const innerR = 110; 
-  const ringWidth = 16;
+  const outerR = 175; 
+  const innerR = 135; 
+  const ringWidth = 22;
 
-  // Background Rings
-  ctx.globalAlpha = 0.1;
+  ctx.globalAlpha = 0.15;
   ctx.lineWidth = ringWidth;
   ctx.lineCap = "round";
   
-  // Outer (PM)
   ctx.beginPath();
   ctx.arc(center, center, outerR, 0, Math.PI * 2);
-  ctx.strokeStyle = "#444";
+  ctx.strokeStyle = "#888"; 
   ctx.stroke();
 
-  // Inner (AM)
   ctx.beginPath();
   ctx.arc(center, center, innerR, 0, Math.PI * 2);
-  ctx.strokeStyle = "#444";
+  ctx.strokeStyle = "#888";
   ctx.stroke();
 
   ctx.globalAlpha = 1;
 
-  // Draw Actual Sessions
   todayLog.sessions.forEach(session => {
     const startDate = new Date(session.start);
     const endDate = new Date(session.end);
-
-    // 시작/종료 시분초 -> 0~12 값으로 변환
-    // AM/PM 구분
     drawSessionArc(ctx, startDate, endDate, innerR, outerR, session.color, ringWidth, center);
   });
 }
 
 function drawSessionArc(ctx, start, end, innerR, outerR, color, width, center) {
-  // 하루 시작 00:00:00
   const dayStart = new Date(start);
   dayStart.setHours(0,0,0,0);
   
   const startSec = (start.getTime() - dayStart.getTime()) / 1000;
   const endSec = (end.getTime() - dayStart.getTime()) / 1000;
   
-  // 12시간 = 43200초
   const halfDay = 43200;
 
-  // Helper to draw arc
   const draw = (radius, s, e) => {
     if (s >= e) return;
-    // 0초 = -90도 (12시 방향)
     const startAngle = (s / halfDay) * (Math.PI * 2) - (Math.PI / 2);
     const endAngle = (e / halfDay) * (Math.PI * 2) - (Math.PI / 2);
     
@@ -466,29 +539,23 @@ function drawSessionArc(ctx, start, end, innerR, outerR, color, width, center) {
     ctx.arc(center, center, radius, startAngle, endAngle);
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12; 
     ctx.shadowColor = color;
     ctx.stroke();
-    ctx.shadowBlur = 0; // reset
+    ctx.shadowBlur = 0; 
   };
 
-  // AM 체크 (0 ~ 43200)
   if (startSec < halfDay) {
-    // AM 구간
     const segEnd = Math.min(endSec, halfDay);
     draw(innerR, startSec, segEnd);
   }
 
-  // PM 체크 (43200 ~ 86400)
   if (endSec > halfDay) {
-    // PM 구간
     const segStart = Math.max(startSec, halfDay);
-    // 12시간을 빼서 0~12 스케일로 맞춤
     draw(outerR, segStart - halfDay, endSec - halfDay);
   }
 }
 
-// 오늘 날짜 표시
 function updateDateDisplay() {
   const now = new Date();
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
@@ -500,48 +567,35 @@ function updateDateDisplay() {
 =============================== */
 function renderCalendar(baseDate) {
   const year = baseDate.getFullYear();
-  const month = baseDate.getMonth(); // 0-indexed
+  const month = baseDate.getMonth(); 
 
   calTitle.textContent = `${year}. ${String(month + 1).padStart(2, '0')}`;
   calGrid.innerHTML = "";
 
-  // 이 달의 1일
   const firstDay = new Date(year, month, 1);
-  // 이 달의 마지막 날
   const lastDay = new Date(year, month + 1, 0);
   
-  // 요일 보정 (월요일 시작)
-  // getDay(): 일0, 월1, 화2 ... 토6
-  // 우리 목표: 월0, 화1 ... 일6
   let startDay = firstDay.getDay() - 1; 
-  if (startDay === -1) startDay = 6; // 일요일이면 6으로
+  if (startDay === -1) startDay = 6; 
 
-  // 빈 블록 채우기
   for (let i = 0; i < startDay; i++) {
     const empty = document.createElement("div");
     empty.className = "day-block empty";
     calGrid.appendChild(empty);
   }
 
-  // 날짜 채우기
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const block = document.createElement("div");
     block.className = "day-block";
     
-    // 오늘인지 체크
     const today = new Date();
     if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) {
       block.classList.add("today");
-      block.id = "todayBlock"; // 실시간 업데이트용 ID
+      block.id = "todayBlock"; 
     }
 
-    // 날짜 텍스트 (작게 표시 옵션, 여기선 색상 위주라 생략하거나 hover로)
     block.title = `${year}-${month+1}-${d}`;
-
-    // Firestore에서 데이터 로드하여 색상 칠하기
-    // (여기서는 비동기로 로드되므로, 일단 그려놓고 데이터 오면 업데이트)
     loadDominantColor(year, month, d, block);
-
     calGrid.appendChild(block);
   }
 }
@@ -550,16 +604,13 @@ async function loadDominantColor(year, month, day, blockElement) {
   if (!currentUser) return;
   
   const dateKey = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  
-  // 만약 오늘이라면 메모리에 있는 todayLog 사용
   const todayKey = getTodayKey();
+  
   if (dateKey === todayKey) {
     applyDominantColor(todayLog.totals, blockElement);
     return;
   }
 
-  // 과거 데이터는 Firestore에서 가져오기
-  // (최적화를 위해선 월별 데이터를 한 번에 가져오는 게 좋으나, 로직 유지 위해 개별 조회)
   try {
     const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
     const docSnap = await getDoc(docRef);
@@ -570,14 +621,13 @@ async function loadDominantColor(year, month, day, blockElement) {
       }
     }
   } catch (e) {
-    console.error("Error loading date color:", e);
+    // console.error("Error loading date color:", e); // 조용히 실패
   }
 }
 
 function applyDominantColor(totals, element) {
   if (!totals || Object.keys(totals).length === 0) return;
   
-  // 가장 큰 값 찾기
   let maxSec = -1;
   let maxCatId = null;
   
@@ -588,19 +638,10 @@ function applyDominantColor(totals, element) {
     }
   }
 
-  // 해당 카테고리 색상 찾기
   if (maxCatId) {
-    // 1. 현재 카테고리 목록에서 찾기
     const cat = categories.find(c => c.id === maxCatId);
     if (cat) {
       element.style.background = cat.color;
-    } else {
-      // 2. 목록에 없으면(삭제됨) todayLog의 session history에서 색상 추적하거나 기본값
-      // 여기선 간단히 세션 로그에서 색상 역추적
-      // (복잡해지므로, 삭제된 카테고리는 회색 처리하거나 유지)
-      // * 개선: Firestore에 totals 저장할 때 colorCode도 같이 저장하면 좋음.
-      // 현재 로직상 카테고리 id로 매칭.
-      // 임시로 찾을 수 없으면 유지.
     }
   }
 }
@@ -612,7 +653,6 @@ function updateTodayCalendarBlock() {
   }
 }
 
-// 캘린더 네비게이션
 prevMonthBtn.onclick = () => {
   currentCalDate.setMonth(currentCalDate.getMonth() - 1);
   renderCalendar(currentCalDate);
@@ -635,13 +675,13 @@ async function saveTodayLog() {
   const dateKey = getTodayKey();
   try {
     await setDoc(doc(db, "users", currentUser.uid, "logs", dateKey), todayLog, { merge: true });
-    console.log("Log Saved");
+    // console.log("Log Saved");
   } catch (e) {
-    console.error("Save Error", e);
+    console.error("로그 저장 실패 (권한을 확인하세요):", e);
+    // alert("데이터 저장이 실패했습니다. Firebase Console에서 규칙(Rules)을 확인해주세요.");
   }
 }
 
-// Auth State Change
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
@@ -651,43 +691,72 @@ onAuthStateChanged(auth, async (user) => {
     userName.textContent = user.displayName;
     userName.classList.remove("hidden");
 
-    // 오늘 데이터 불러오기
+    try {
+      const catRef = doc(db, "users", user.uid, "settings", "categories");
+      const catSnap = await getDoc(catRef);
+      if (catSnap.exists()) {
+        categories = catSnap.data().list || [];
+        const savedActive = categories.find(c => c.id === activeCategory.id);
+        if(savedActive) activeCategory = savedActive;
+        else if(categories.length > 0) activeCategory = categories[0];
+      } else {
+        saveUserCategories();
+      }
+    } catch(e) {
+      console.error("카테고리 로드 에러:", e);
+    }
+    
+    renderCategories();
+    drawRing();
+
     const dateKey = getTodayKey();
     const docRef = doc(db, "users", user.uid, "logs", dateKey);
-    const docSnap = await getDoc(docRef);
     
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      // 병합
-      todayLog.sessions = [...(data.sessions || []), ...todayLog.sessions];
-      // totals 병합은 복잡하므로, 일단 DB값 우선 + 현재 메모리 값 더하기
-      // (간단히 DB 로드 값으로 덮어씀. 앱 새로고침 시 초기화되므로)
-      todayLog = data; 
-      if (!todayLog.sessions) todayLog.sessions = [];
-      if (!todayLog.totals) todayLog.totals = {};
+    try {
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const dbData = docSnap.data();
+        const combinedSessions = [...(dbData.sessions || []), ...(todayLog.sessions || [])];
+        
+        const combinedTotals = { ...(dbData.totals || {}) };
+        const localTotals = todayLog.totals || {};
+        for (const [id, count] of Object.entries(localTotals)) {
+          combinedTotals[id] = (combinedTotals[id] || 0) + count;
+        }
+        
+        todayLog = { sessions: combinedSessions, totals: combinedTotals };
+        saveTodayLog();
+      } else {
+        saveTodayLog();
+      }
+    } catch(e) {
+      console.error("로그 로드 에러:", e);
     }
 
-    // UI 갱신
     drawDailyRing();
     renderCalendar(currentCalDate);
 
   } else {
     currentUser = null;
     todayLog = { sessions: [], totals: {} };
+    categories = []; 
+    activeCategory = { ...defaultCategory };
+    
     authBtn.textContent = "Google 로그인";
     userProfile.classList.add("hidden");
     userName.classList.add("hidden");
     
-    // UI 초기화
-    drawDailyRing(); // 빈 링
-    renderCalendar(currentCalDate); // 빈 캘린더 (색상 없음)
+    renderCategories();
+    drawRing();
+    drawDailyRing(); 
+    renderCalendar(currentCalDate); 
   }
 });
 
 authBtn.onclick = async () => {
   const user = auth.currentUser;
   if (user) {
-    await saveTodayLog(); // 로그아웃 전 저장
+    await saveTodayLog(); 
     await signOut(auth);
   } else {
     await signInWithPopup(auth, googleProvider);
@@ -701,5 +770,5 @@ updateDateDisplay();
 renderCategories();
 drawRing();
 renderTime();
-drawDailyRing(); // 초기 빈 시계
-renderCalendar(currentCalDate); // 초기 달력
+drawDailyRing();
+renderCalendar(currentCalDate);

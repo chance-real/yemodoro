@@ -15,5 +15,4 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-// ✅ 데이터베이스 추가
 export const db = getFirestore(app);

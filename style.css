@@ -10,9 +10,10 @@
 body {
   margin: 0;
   background: radial-gradient(circle at top, #1b1b1b, #0b0b0b);
-  color: #f5f5f7;
+  color: #ffffff;
   height: 100vh;
-  overflow: hidden; /* 화면 고정 */
+  overflow: hidden; 
+  transition: background 0.3s ease;
 }
 
 .hidden {
@@ -28,11 +29,13 @@ body {
   align-items: center;
   padding: 20px 32px;
   height: 80px;
+  transition: opacity 0.3s ease;
 }
 
 .top h1 {
   font-size: 22px;
-  font-weight: 600;
+  font-weight: 700;
+  color: #fff;
 }
 
 .auth {
@@ -46,45 +49,47 @@ body {
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .user-name {
   font-size: 14px;
-  color: #e0e0e0;
-  font-weight: 500;
+  color: #fff;
+  font-weight: 600;
   margin-right: 4px;
 }
 
 /* ===============================
-   Layout (3단 구조 변경)
+   Layout (3단 구조)
 =============================== */
 .layout {
   display: grid;
-  /* 좌측(카테고리) - 중앙(타이머) - 우측(트래커) */
   grid-template-columns: 300px 1fr 340px; 
   gap: 24px;
   padding: 0 32px 32px 32px;
   height: calc(100vh - 80px);
+  transition: all 0.3s ease;
 }
 
 .card {
   background: linear-gradient(180deg, #1c1c1e, #141414);
   border-radius: 24px;
   padding: 24px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    0 20px 40px rgba(0,0,0,0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12); 
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6);
   display: flex;
   flex-direction: column;
-  overflow-y: auto; /* 내용 많으면 스크롤 */
+  overflow-y: auto; 
+  position: relative; 
+  transition: all 0.3s ease;
 }
 
 .card h2 {
   font-size: 16px;
-  color: #b0b0b0;
+  color: #e5e5e5;
   margin-top: 0;
   margin-bottom: 20px;
+  font-weight: 600;
 }
 
 /* ===============================
@@ -107,7 +112,7 @@ body {
 
 .category-btn {
   flex: 1;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border: none;
   font-weight: 600;
   color: #fff;
@@ -120,24 +125,27 @@ body {
   text-overflow: ellipsis;
   box-shadow: none;
   transition: all 0.18s ease;
+  font-size: 15px;
 }
 
 .category-btn.active {
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 1);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
 }
 
 .category-settings {
-  width: 40px;
+  width: 44px;
   height: 100%;
-  background: transparent;
+  background: transparent; 
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 18px;
   margin-left: 2px;
-  transition: transform 0.2s;
+  transition: transform 0.3s ease; 
 }
 
 .category-settings:hover {
@@ -152,15 +160,18 @@ body {
 
 #categoryInput {
   flex: 1;
-  padding: 10px;
+  padding: 12px;
   border-radius: 10px;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.1);
   background: #2c2c2e;
   color: white;
+  font-size: 14px;
 }
 
 #addCategoryBtn {
   padding: 10px 16px;
+  background: #3a3a3c;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 /* ===============================
@@ -168,45 +179,114 @@ body {
 =============================== */
 .center {
   align-items: center;
-  justify-content: center;
+  justify-content: center; /* 다시 중앙 정렬로 복귀 (버튼이 빠졌으므로) */
+}
+
+/* 집중 모드 버튼 및 기타 아이콘 버튼 */
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 20px;
+  padding: 8px;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  z-index: 10;
+}
+.icon-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+}
+.top-right {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+#timerContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 #currentCategory {
-  font-size: 18px;
-  margin-bottom: 6px;
-  color: #b0b0b0;
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-weight: 600;
+  line-height: 1.4; 
+  padding-top: 4px;
 }
 
 #timer {
   font-size: 100px;
   font-weight: 700;
   margin: 12px 0 30px;
-  font-variant-numeric: tabular-nums; /* 숫자 너비 고정 */
+  font-variant-numeric: tabular-nums; 
+  color: #fff;
+  text-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
-.controls {
+/* --- [New] Control Panel (Bottom Right) --- */
+.control-panel {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+  z-index: 10;
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 button {
-  padding: 10px 18px;
   border-radius: 12px;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.1);
   background: #2c2c2e;
   color: #fff;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+}
+button:hover {
+  background: #48484a;
+  border-color: rgba(255,255,255,0.3);
 }
 
-button:hover {
-  background: #3a3a3c;
+/* 주요 버튼 스타일 */
+.primary-btn {
+  padding: 12px 24px;
+  font-size: 15px;
+  background: #fff;
+  color: #000;
+  border: none;
+}
+.primary-btn:hover {
+  background: #e0e0e0;
+  border-color: transparent;
+}
+
+.secondary-btn {
+  padding: 12px 18px;
+  font-size: 14px;
+  background: rgba(255,255,255,0.1);
+}
+
+.small-btn {
+  padding: 10px 14px;
+  font-size: 13px;
 }
 
 /* ===============================
-   Tracker (Right) - NEW
+   Tracker (Right)
 =============================== */
 .tracker-container {
   display: flex;
@@ -215,7 +295,6 @@ button:hover {
   gap: 24px;
 }
 
-/* 1. Daily Ring (24h) */
 .daily-ring-wrapper {
   position: relative;
   width: 220px;
@@ -232,15 +311,18 @@ button:hover {
 
 .today-date {
   position: absolute;
-  font-size: 14px;
-  color: #b0b0b0;
-  font-weight: 500;
+  font-size: 16px;
+  color: #ffffff;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  pointer-events: none; 
 }
 
-/* 2. Monthly Calendar */
+/* Calendar */
 .calendar-wrapper {
   width: 100%;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   padding: 16px;
 }
@@ -253,20 +335,21 @@ button:hover {
 }
 
 .cal-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #f5f5f7;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
 }
 
 .cal-nav button {
   padding: 4px 8px;
   font-size: 12px;
   background: transparent;
-  color: #888;
+  color: #ccc;
+  border: none;
 }
 .cal-nav button:hover {
   color: #fff;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.2);
 }
 
 .cal-grid {
@@ -275,56 +358,54 @@ button:hover {
   gap: 6px;
 }
 
-/* 요일 헤더 */
 .day-name {
   text-align: center;
-  font-size: 10px;
-  color: #666;
-  margin-bottom: 4px;
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
-/* 날짜 블록 */
 .day-block {
-  aspect-ratio: 1; /* 정사각형 */
-  border-radius: 4px;
-  background: #2c2c2e;
+  aspect-ratio: 1; 
+  border-radius: 6px;
+  background: #3a3a3c;
   position: relative;
   cursor: pointer;
   transition: transform 0.1s;
+  border: 1px solid rgba(0,0,0,0.3);
 }
 
 .day-block:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
   z-index: 2;
+  border-color: #fff;
 }
 
 .day-block.empty {
   background: transparent;
+  border: none;
   pointer-events: none;
 }
 
-/* 오늘 날짜 표시 (테두리) */
 .day-block.today {
-  border: 1px solid rgba(255,255,255,0.5);
+  border: 2px solid #fff;
 }
 
 /* ===============================
-   Settings Panel
+   Settings Panel (Global Popup)
 =============================== */
 .settings-panel {
   position: absolute;
-  top: 0;
-  left: 100%;
-  margin-left: 12px;
-  background: #2c2c2e;
-  border: 1px solid #3a3a3c;
+  background: #252525;
+  border: 1px solid rgba(255,255,255,0.2);
   border-radius: 14px;
   padding: 16px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.9);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  z-index: 9999;
+  z-index: 99999; 
   width: 220px;
 }
 
@@ -335,15 +416,15 @@ button:hover {
   left: -6px;
   width: 12px;
   height: 12px;
-  background: #2c2c2e;
-  border-left: 1px solid #3a3a3c;
-  border-bottom: 1px solid #3a3a3c;
+  background: #252525;
+  border-left: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 1px solid rgba(255,255,255,0.2);
   transform: rotate(45deg);
 }
 
 .settings-label {
   font-size: 12px;
-  color: #b0b0b0;
+  color: #ccc;
   margin-bottom: 4px;
   display: block;
 }
@@ -359,7 +440,7 @@ button:hover {
   padding: 8px;
   font-size: 14px;
   background: #1c1c1e;
-  border: 1px solid #3a3a3c;
+  border: 1px solid #555;
   color: white;
   border-radius: 6px;
 }
@@ -383,9 +464,9 @@ button:hover {
   cursor: pointer;
 }
 
-.btn-confirm { background: #0a84ff; color: white; }
+.btn-confirm { background: #0a84ff; color: white; border: none; }
 .btn-confirm:hover { background: #0071e3; }
-.btn-cancel { background: #3a3a3c; color: #e5e5e5; }
+.btn-cancel { background: #3a3a3c; color: #e5e5e5; border: none; }
 .btn-cancel:hover { background: #48484a; }
 .btn-delete { background: transparent; border: 1px solid #ff453a; color: #ff453a; margin-top: 4px; }
 .btn-delete:hover { background: rgba(255, 69, 58, 0.1); }
@@ -400,8 +481,66 @@ input[type="number"] {
   width: 80px;
   padding: 10px;
   border-radius: 10px;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.1);
   background: #1f1f1f;
   color: #fff;
   text-align: center;
+  font-size: 16px;
+}
+
+/* ===============================
+   [NEW] Focus Mode (집중 모드)
+=============================== */
+body.focus-mode {
+  background: #000000; /* Deep Black */
+}
+
+/* 숨겨야 할 요소들 */
+body.focus-mode .top,
+body.focus-mode .left-panel,
+body.focus-mode .right-panel,
+body.focus-mode .control-panel, /* 제어 패널 숨김 */
+body.focus-mode #focusToggleBtn, /* 토글 버튼도 숨김 */
+body.focus-mode #currentCategory { /* 카테고리 제목 숨김 */
+  display: none !important;
+}
+
+/* 레이아웃 변경 */
+body.focus-mode .layout {
+  display: flex; /* Flex로 중앙 정렬 */
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  padding: 0;
+}
+
+/* 중앙 카드 전체 화면화 */
+body.focus-mode .center {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  justify-content: center; /* 수직 중앙 */
+}
+
+/* 타이머 컨테이너 확대 */
+body.focus-mode #timerContainer {
+  transform: scale(1.5); /* 1.5배 확대 */
+}
+
+/* 집중 모드 해제를 위한 닫기 버튼 (옵션) - 지금은 ESC 및 우측 상단 버튼 사용 */
+/* body.focus-mode 상태에서는 focusToggleBtn을 보이게 하려면 위 display:none 규칙에서 제외해야 함 */
+/* 수정: 토글 버튼은 보이게 유지하고 위치만 변경 */
+body.focus-mode #focusToggleBtn {
+  display: block !important;
+  color: #333; /* 어두운 배경에서 은은하게 */
+  position: fixed;
+  top: 30px;
+  right: 30px;
+}
+body.focus-mode #focusToggleBtn:hover {
+  color: #fff;
 }
