@@ -1,11 +1,32 @@
 /* ===============================
-   Global
+   Global & Scrollbar Custom
 =============================== */
 * {
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
     "Segoe UI", Roboto, sans-serif;
-  -webkit-tap-highlight-color: transparent; /* 모바일 터치 하이라이트 제거 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 커스텀 스크롤바 디자인 (다크 테마) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1c1c1e; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #48484a; 
+  border-radius: 4px;
+  border: 2px solid #1c1c1e; 
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #636366; 
+}
+::-webkit-scrollbar-corner {
+  background: #1c1c1e;
 }
 
 body {
@@ -13,16 +34,15 @@ body {
   background: radial-gradient(circle at top, #1b1b1b, #0b0b0b);
   color: #ffffff;
   height: 100vh;
-  overflow: hidden; /* 기본은 스크롤 숨김 (데스크탑) */
+  overflow: hidden;
   transition: background 0.3s ease;
 }
 
-/* 모바일 등 작은 화면에서는 스크롤 허용 */
 @media (max-width: 1024px) {
   body {
     height: auto;
     overflow-y: auto;
-    background: #121212; /* 단색 배경이 모바일에서 깔끔 */
+    background: #121212;
   }
 }
 
@@ -37,8 +57,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 32px; /* 패딩 약간 축소 */
-  height: 70px;      /* 높이 축소하여 공간 확보 */
+  padding: 15px 32px;
+  height: 70px;
   transition: opacity 0.3s ease;
 }
 
@@ -74,18 +94,17 @@ body {
 =============================== */
 .layout {
   display: grid;
-  /* 데스크탑 기본: 좌(300) 중(유동) 우(340) */
   grid-template-columns: 300px 1fr 340px; 
-  gap: 20px; /* 간격 약간 축소 */
+  gap: 20px;
   padding: 0 32px 32px 32px;
-  height: calc(100vh - 70px); /* 헤더 높이 반영 */
+  height: calc(100vh - 70px);
   transition: all 0.3s ease;
 }
 
 .card {
   background: linear-gradient(180deg, #1c1c1e, #141414);
   border-radius: 24px;
-  padding: 20px; /* 패딩 축소 (24 -> 20) */
+  padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.12); 
   box-shadow: 0 20px 40px rgba(0,0,0,0.6);
   display: flex;
@@ -96,49 +115,41 @@ body {
 }
 
 .card h2 {
-  font-size: 15px; /* 폰트 약간 축소 */
+  font-size: 15px;
   color: #e5e5e5;
   margin-top: 0;
   margin-bottom: 15px;
   font-weight: 600;
 }
 
-/* === [Media Query] Tablet & Mobile (1024px 이하) === */
 @media (max-width: 1024px) {
   .layout {
     display: flex;
-    flex-direction: column; /* 수직 쌓기 */
-    height: auto; /* 높이 자동 */
+    flex-direction: column;
+    height: auto;
     padding: 20px;
     gap: 20px;
   }
 
   .card {
     width: 100%;
-    min-height: 300px; /* 최소 높이 보장 */
-    overflow: visible; /* 내부 스크롤 대신 전체 스크롤 */
+    min-height: 300px;
+    overflow: visible;
   }
 
   .center {
-    order: -1; /* 타이머를 맨 위로 */
+    order: -1;
     min-height: 500px;
   }
 
-  .left-panel {
-    order: 0;
-  }
-  
-  .right-panel {
-    order: 1;
-  }
+  .left-panel { order: 0; }
+  .right-panel { order: 1; }
 }
 
-/* === [Media Query] Large Screens (1600px 이상) === */
 @media (min-width: 1600px) {
   .layout {
-    max-width: 1800px; /* 너무 퍼지지 않게 제한 */
+    max-width: 1800px;
     margin: 0 auto;
-    /* 전체적인 비율 확대 */
     zoom: 1.25; 
   }
 }
@@ -226,40 +237,64 @@ body {
 }
 
 /* ===============================
-   Main Timer (Center)
+   Center Card (Timer & Record View)
 =============================== */
 .center {
-  align-items: center;
-  justify-content: space-evenly; /* 공간 배분 최적화 */
+  padding: 0; 
+  overflow: hidden; 
 }
 
-/* 집중 모드 버튼 및 기타 아이콘 버튼 */
-.icon-btn {
-  background: transparent;
-  border: none;
-  color: #666;
-  font-size: 20px;
-  padding: 8px;
+.view-container {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* --- Focus Mode Button Style --- */
+.focus-btn-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.focus-mode-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ccc;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 20px;
   cursor: pointer;
-  transition: color 0.2s, transform 0.2s;
-  z-index: 10;
+  transition: all 0.2s ease;
 }
-.icon-btn:hover {
+
+.focus-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
   color: #fff;
-  background: rgba(255,255,255,0.1);
-  border-radius: 8px;
+  border-color: #fff;
 }
-.top-right {
-  position: absolute;
-  top: 15px;
-  right: 15px;
+
+.focus-mode-btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
+  margin: 0 10px;
+}
+
+/* --- Timer View --- */
+#timerView {
+  align-items: center;
+  justify-content: space-evenly;
 }
 
 #timerContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: -10px; /* 약간 위로 올려서 공간 확보 */
+  margin-top: -10px;
   transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -273,7 +308,7 @@ body {
 }
 
 #timer {
-  font-size: 90px; /* 폰트 약간 축소 (100 -> 90) */
+  font-size: 90px;
   font-weight: 700;
   margin: 8px 0 20px;
   font-variant-numeric: tabular-nums; 
@@ -281,7 +316,7 @@ body {
   text-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
-/* Control Panel (Bottom Right) */
+/* Control Panel */
 .control-panel {
   position: absolute;
   bottom: 20px;
@@ -291,6 +326,24 @@ body {
   gap: 10px;
   align-items: flex-end;
   z-index: 10;
+}
+
+.record-btn-float {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.record-btn-float:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .control-row {
@@ -336,6 +389,314 @@ button:hover {
   font-size: 12px;
 }
 
+/* --- Record View (Daily Page) --- */
+#recordView {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: #18181a;
+}
+
+.record-header {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: #1c1c1e;
+  position: relative; 
+}
+
+.back-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: #fff; 
+}
+.back-btn:hover {
+  color: #ccc;
+  background: transparent;
+}
+
+#recordDateTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  transition: all 0.3s ease;
+}
+
+.record-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Left: Notion Editor */
+.record-left {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  background: #141414;
+}
+
+.notion-editor {
+  width: 100%;
+  min-height: 100%;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #e0e0e0;
+  white-space: pre-wrap;
+}
+
+.notion-editor:empty:before {
+  content: attr(placeholder);
+  color: #555;
+  display: block; 
+}
+
+/* Notion Elements Styles */
+.notion-editor h1 { font-size: 24px; font-weight: 700; margin: 20px 0 10px; color: #fff; border-bottom: 1px solid #333; padding-bottom: 6px; }
+.notion-editor h2 { font-size: 20px; font-weight: 600; margin: 16px 0 8px; color: #eee; }
+.notion-editor ul { padding-left: 20px; margin: 8px 0; }
+.notion-editor li { margin-bottom: 4px; }
+
+/* Custom Checkbox Design */
+.notion-editor input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin-right: 8px;
+  cursor: pointer;
+  position: relative;
+  top: 3px;
+}
+
+.notion-editor input[type="checkbox"]:checked {
+  background: #0a84ff;
+  border-color: #0a84ff;
+}
+
+.notion-editor input[type="checkbox"]:checked::after {
+  content: '✔';
+  font-size: 10px;
+  color: white;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: bold;
+}
+
+/* 페이지(구분선) 스타일 */
+.notion-editor hr {
+  border: none;
+  border-top: 2px solid rgba(255,255,255,0.2);
+  margin: 20px 0;
+}
+
+.notion-editor details {
+  margin: 8px 0;
+  padding: 8px;
+  background: #1f1f1f;
+  border-radius: 6px;
+}
+.notion-editor summary {
+  cursor: pointer;
+  font-weight: 600;
+  outline: none;
+}
+.notion-editor details[open] summary {
+  margin-bottom: 8px;
+}
+
+/* Right: Time Grid - [Fixed Layout with Flex] */
+.record-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #101010;
+  border-left: 1px solid rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.time-grid-header {
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #fff; 
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: #18181a;
+  font-weight: 600;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* [NEW] 삭제 모드 & 컨트롤 스타일 */
+.delete-controls-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.edit-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #252525;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #444;
+}
+
+.control-icon-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.control-icon-btn:hover { background: rgba(255,255,255,0.1); }
+.control-icon-btn:disabled { color: #555; cursor: default; }
+
+.control-text-btn {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+.control-text-btn.cancel { background: #3a3a3c; color: #ccc; }
+.control-text-btn.cancel:hover { background: #48484a; color: #fff; }
+.control-text-btn.confirm { background: #0a84ff; color: #fff; }
+.control-text-btn.confirm:hover { background: #0071e3; }
+
+.delete-mode-btn {
+  background: #333;
+  color: #ccc;
+  border: 1px solid #555;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.delete-mode-btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.delete-mode-btn.active {
+  background: #ff453a;
+  color: white;
+  border-color: #ff453a;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 69, 58, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); }
+}
+
+/* Time Grid Structure */
+.time-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: flex; 
+  flex-direction: column;
+}
+
+.time-row {
+  display: flex; 
+  width: 100%;
+  height: 40px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.time-row-label {
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #fff; 
+  border-right: 1px solid rgba(255,255,255,0.08);
+  background: #161618;
+  flex-shrink: 0;
+}
+
+.time-row-blocks {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr); /* 10분 단위 6개 */
+  height: 100%;
+}
+
+.time-block {
+  border-right: 1px solid rgba(255,255,255,0.08); /* 구분선 명확화 */
+  transition: all 0.15s;
+  position: relative;
+  height: 100%;
+}
+.time-block:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+/* 삭제 모드일 때 커서 */
+.time-grid.delete-mode .time-block.has-data:hover {
+  cursor: pointer;
+  opacity: 0.5;
+  background: #ff453a !important; /* 지울 대상 빨갛게 표시 */
+}
+
+/* 10분 단위 눈금 시각화 강화 */
+.time-block:nth-child(3) { border-right: 1px solid rgba(255,255,255,0.2); } 
+
+/* ===============================
+   Slash Menu (Popup)
+=============================== */
+.slash-menu {
+  position: absolute;
+  width: 180px;
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 20000;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+.menu-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #eee;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.menu-item:hover, .menu-item.selected {
+  background: #0a84ff;
+  color: #fff;
+}
+
+
 /* ===============================
    Tracker (Right)
 =============================== */
@@ -343,17 +704,17 @@ button:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px; /* 간격 축소 */
+  gap: 15px;
 }
 
 .daily-ring-wrapper {
   position: relative;
-  width: 200px; /* 크기 약간 축소 (220 -> 200) */
+  width: 200px;
   height: 200px;
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-shrink: 0; /* 축소 방지 */
+  flex-shrink: 0;
 }
 
 #dailyRing {
@@ -364,7 +725,7 @@ button:hover {
 
 .today-date {
   position: absolute;
-  font-size: 13px; /* 폰트 축소 (16 -> 13) */
+  font-size: 13px;
   color: #ffffff;
   font-weight: 700;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
@@ -377,8 +738,8 @@ button:hover {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
-  padding: 12px; /* 패딩 축소 */
-  flex: 1; /* 남은 공간 차지 */
+  padding: 12px;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
@@ -411,7 +772,7 @@ button:hover {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px; /* 그리드 간격 축소 */
+  gap: 4px;
 }
 
 .day-name {
@@ -437,10 +798,18 @@ button:hover {
   z-index: 2;
   border-color: #fff;
 }
+.day-block.selected {
+  border: 2px solid #0a84ff !important;
+  z-index: 1;
+}
 
 .day-block.empty {
   background: transparent;
   border: none;
+  cursor: default;
+}
+.day-block.empty:hover {
+  transform: none;
 }
 
 .day-block.today {
@@ -530,7 +899,7 @@ button:hover {
    Canvas (Main)
 =============================== */
 #ring {
-  margin: 10px 0; /* 마진 약간 축소 */
+  margin: 10px 0;
 }
 input[type="number"] {
   width: 70px;
@@ -554,10 +923,10 @@ input[type="number"] {
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
-  pointer-events: none; /* 마우스 이벤트를 가로채지 않음 */
+  pointer-events: none; 
   z-index: 100000;
   box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-  white-space: pre-line; /* 줄바꿈 지원 */
+  white-space: pre-line; 
   line-height: 1.4;
   backdrop-filter: blur(4px);
 }
@@ -565,32 +934,50 @@ input[type="number"] {
 /* ===============================
    Focus Mode (집중 모드)
 =============================== */
-body.focus-mode {
-  background: #000000; /* Deep Black */
-  overflow: hidden !important; /* 포커스 모드에서는 스크롤 차단 */
+.exit-focus-btn {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 30px;
+  cursor: pointer;
+  z-index: 99999;
+  font-weight: 600;
+  backdrop-filter: blur(5px);
+}
+.exit-focus-btn:hover {
+  background: rgba(255,255,255,0.3);
 }
 
-/* 숨겨야 할 요소들 */
+body.focus-mode {
+  background: #000000;
+  overflow: hidden !important;
+}
+
 body.focus-mode .top,
 body.focus-mode .left-panel,
 body.focus-mode .right-panel,
 body.focus-mode .control-panel, 
-body.focus-mode #focusToggleBtn, 
-body.focus-mode #currentCategory { 
+body.focus-mode .focus-btn-container,
+body.focus-mode #openRecordBtn,
+body.focus-mode #timerView.hidden, 
+body.focus-mode #recordView.hidden {
   display: none !important;
 }
 
-/* 레이아웃 변경 */
 body.focus-mode .layout {
   display: flex; 
   justify-content: center;
   align-items: center;
   height: 100vh;
   padding: 0;
-  zoom: 1 !important; /* 대형 화면 줌 해제 */
+  zoom: 1 !important;
 }
 
-/* 중앙 카드 전체 화면화 */
 body.focus-mode .center {
   width: 100%;
   height: 100%;
@@ -600,22 +987,34 @@ body.focus-mode .center {
   box-shadow: none;
   padding: 0;
   justify-content: center; 
-  min-height: 0; /* 모바일 높이 제한 해제 */
+  min-height: 0;
+  align-items: center;
+  display: flex;
 }
 
-/* 타이머 컨테이너 확대 */
+/* 타이머 뷰 집중 모드 */
+body.focus-mode #timerView {
+  justify-content: center;
+}
 body.focus-mode #timerContainer {
-  transform: scale(1.5); 
+  transform: scale(1.8); 
   margin-top: 0;
 }
 
-body.focus-mode #focusToggleBtn {
-  display: block !important;
-  color: #333; 
-  position: fixed;
-  top: 30px;
-  right: 30px;
+/* 기록 뷰 집중 모드 */
+body.focus-mode #recordView {
+  width: 90%;
+  height: 90%;
+  background: #111;
+  border-radius: 20px;
+  border: 1px solid #333;
 }
-body.focus-mode #focusToggleBtn:hover {
-  color: #fff;
+
+/* 집중 모드 시 날짜 텍스트를 버튼과 안 겹치게 이동 */
+body.focus-mode #recordDateTitle {
+  position: absolute;
+  right: 20px;
+  top: 70px; /* 버튼 아래로 이동 */
+  font-size: 14px;
+  opacity: 0.8;
 }

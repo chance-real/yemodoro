@@ -3,16 +3,14 @@
 =============================== */
 import { auth, googleProvider, db } from "./firebase.js";
 import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 /* ===============================
    Sound Effects
 =============================== */
-// 오디오 파일 로드
 const clickSound = new Audio('computer-mouse-click-351398.mp3');
 const alarmSound = new Audio('bellding-254774.mp3');
 
-// 사운드 재생 함수
 function playClickSound() {
   const sound = clickSound.cloneNode();
   sound.volume = 0.6;
@@ -24,9 +22,8 @@ function playAlarmSound() {
   alarmSound.play().catch(e => console.log("알림음 재생 실패:", e));
 }
 
-// 글로벌 클릭 리스너
 document.addEventListener('click', (e) => {
-  const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn');
+  const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn, .menu-item, .record-btn-float, .focus-mode-btn');
   if (target) {
     playClickSound();
   }
@@ -60,14 +57,79 @@ const calGrid = document.getElementById("calGrid");
 const prevMonthBtn = document.getElementById("prevMonthBtn");
 const nextMonthBtn = document.getElementById("nextMonthBtn");
 
-// Focus Mode & New Controls
-const focusToggleBtn = document.getElementById("focusToggleBtn");
+// Controls
+const mainFocusBtn = document.getElementById("mainFocusBtn");
+const recordFocusBtn = document.getElementById("recordFocusBtn");
+const exitFocusBtn = document.getElementById("exitFocusBtn");
+
 const mainActionBtn = document.getElementById("mainActionBtn"); 
 const resetBtn = document.getElementById("resetBtn");
 const setTimeBtn = document.getElementById("setTimeBtn");
 
-// Tooltip Element
+// Tooltip
 const tooltipEl = document.getElementById("tooltip");
+
+// View Switcher & Record Page
+const timerView = document.getElementById("timerView");
+const recordView = document.getElementById("recordView");
+const openRecordBtn = document.getElementById("openRecordBtn");
+const closeRecordBtn = document.getElementById("closeRecordBtn");
+const recordDateTitle = document.getElementById("recordDateTitle");
+const timeGrid = document.getElementById("timeGrid");
+const editor = document.getElementById("editor");
+const slashMenu = document.getElementById("slashMenu");
+
+// [NEW] Delete Mode Controls
+const deleteModeBtn = document.getElementById("deleteModeBtn");
+const editControls = document.getElementById("editControls");
+const undoBtn = document.getElementById("undoBtn");
+const redoBtn = document.getElementById("redoBtn");
+const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
+const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+const gridTitleText = document.getElementById("gridTitleText"); 
+
+/* ===============================
+   Helper Functions
+=============================== */
+function getTodayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+
+async function saveTodayLog() {
+  if (!currentUser) return;
+  
+  // 현재 보고 있는 날짜가 오늘이라면 에디터 내용 동기화
+  if (selectedDateKey === getTodayKey()) {
+    todayLog.memo = editor.innerHTML;
+  }
+
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "logs", getTodayKey()), todayLog);
+  } catch(e) { console.error("오늘 기록 저장 실패:", e); }
+}
+
+async function loadDateLog(dateKey) {
+  if (!currentUser) return { sessions: [], totals: {}, memo: "" };
+  try {
+    const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (e) { console.error(e); }
+  return { sessions: [], totals: {}, memo: "" };
+}
+
+function loadMemoData(dateKey) {
+  if (viewLog && viewLog.memo) {
+    editor.innerHTML = viewLog.memo;
+  } else {
+    editor.innerHTML = "";
+  }
+  const [y, m, d] = dateKey.split("-");
+  recordDateTitle.textContent = `${y}. ${m}. ${d} 기록`;
+}
 
 /* ===============================
    State Variables
@@ -83,51 +145,55 @@ let activeCategory = { ...defaultCategory };
 
 let totalSeconds = 25 * 60;
 let remainingSeconds = totalSeconds;
-let timerInterval = null;
+let timerInterval = null; 
 let activeSettingsPanel = null;
 
 // User & Data State
 let currentUser = null;
-let todayLog = { sessions: [], totals: {} }; 
-let currentCalDate = new Date(); 
+let todayLog = { sessions: [], totals: {}, memo: "" }; 
+let viewLog = { sessions: [], totals: {}, memo: "" };  
 
-// [NEW] Screen Wake Lock 변수
+let currentCalDate = new Date(); 
+let selectedDateKey = getTodayKey(); 
+
 let wakeLock = null;
 
+// 슬래시 메뉴 상태
+let slashMenuIndex = 0;
+
+// [NEW] Delete Mode State
+let isDeleteMode = false;
+let tempLogData = null; 
+let undoStack = [];
+let redoStack = [];
+
+// [FIX] Memo Auto-Save State
+let saveTimeout = null;
+
 /* ===============================
-   [NEW] Screen Wake Lock Logic
+   Wake Lock
 =============================== */
-// 화면 켜짐 유지 요청 함수
 async function requestWakeLock() {
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      // console.log('화면 켜짐 유지 활성화 (Wake Lock Active)');
-      
-      wakeLock.addEventListener('release', () => {
-        // console.log('화면 켜짐 유지 해제됨 (Wake Lock Released)');
-      });
+      wakeLock.addEventListener('release', () => {});
     } catch (err) {
-      console.error(`Wake Lock 요청 실패: ${err.name}, ${err.message}`);
+      console.log('Wake Lock failed, continuing execution.');
     }
   }
 }
 
-// 화면 켜짐 유지 해제 함수
 function releaseWakeLock() {
   if (wakeLock !== null) {
     wakeLock.release()
-      .then(() => {
-        wakeLock = null;
-      })
+      .then(() => { wakeLock = null; })
       .catch((err) => console.error(err));
   }
 }
 
-// 탭 전환이나 창 최소화 후 돌아왔을 때, 타이머가 돌고 있다면 다시 잠금 요청
 document.addEventListener('visibilitychange', async () => {
   if (wakeLock !== null && document.visibilityState === 'visible') {
-    // 이미 락이 걸려있었으나 시스템에 의해 해제되었을 수 있으므로 재요청
     if (timerInterval) { 
       await requestWakeLock();
     }
@@ -135,7 +201,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 /* ===============================
-   Tooltip Logic (Global)
+   Tooltip Logic
 =============================== */
 function showTooltip(text, x, y) {
   tooltipEl.textContent = text;
@@ -144,20 +210,12 @@ function showTooltip(text, x, y) {
 }
 
 function moveTooltip(x, y) {
-  // 툴팁 위치 조정 (마우스 커서에서 약간 떨어지게)
   const offset = 15;
   let left = x + offset;
   let top = y + offset;
-
-  // 화면 밖으로 나가지 않게 조정
   const rect = tooltipEl.getBoundingClientRect();
-  if (left + rect.width > window.innerWidth) {
-    left = x - rect.width - offset;
-  }
-  if (top + rect.height > window.innerHeight) {
-    top = y - rect.height - offset;
-  }
-
+  if (left + rect.width > window.innerWidth) left = x - rect.width - offset;
+  if (top + rect.height > window.innerHeight) top = y - rect.height - offset;
   tooltipEl.style.left = `${left}px`;
   tooltipEl.style.top = `${top}px`;
 }
@@ -167,7 +225,7 @@ function hideTooltip() {
 }
 
 /* ===============================
-   Core Function: Save Categories
+   Category Logic
 =============================== */
 async function saveUserCategories() {
   if (!currentUser) return;
@@ -175,14 +233,9 @@ async function saveUserCategories() {
     await setDoc(doc(db, "users", currentUser.uid, "settings", "categories"), {
       list: categories
     });
-  } catch(e) {
-    console.error("카테고리 저장 실패:", e);
-  }
+  } catch(e) { console.error("카테고리 저장 실패:", e); }
 }
 
-/* ===============================
-   Category Logic
-=============================== */
 function renderCategories() {
   categoryList.innerHTML = "";
   categories.forEach(cat => {
@@ -223,19 +276,15 @@ function renderCategories() {
 function addCategory() {
   const name = categoryInput.value.trim();
   if (!name) return;
-
   const newCat = {
     id: Date.now().toString(),
     name,
     color: `hsl(${Math.random() * 360}, 80%, 60%)`
   };
-
   categories.push(newCat);
   categoryInput.value = "";
-  
   renderCategories();
   drawRing(); 
-  
   saveUserCategories();
 }
 
@@ -255,90 +304,75 @@ function openSettings(cat, triggerElement) {
     activeSettingsPanel.remove();
     activeSettingsPanel = null;
   }
-
   const panel = document.createElement("div");
   panel.className = "settings-panel";
   document.body.appendChild(panel);
 
   const rect = triggerElement.getBoundingClientRect();
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  
   panel.style.top = `${rect.top + scrollTop}px`;
   panel.style.left = `${rect.right + 12}px`;
 
-  const nameLabel = document.createElement("span");
-  nameLabel.className = "settings-label";
-  nameLabel.textContent = "이름 변경";
+  const nameLabel = document.createElement("span"); nameLabel.className = "settings-label"; nameLabel.textContent = "이름 변경";
+  const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = cat.name; nameInput.style.marginBottom = "8px";
   
-  const nameInput = document.createElement("input");
-  nameInput.type = "text";
-  nameInput.value = cat.name;
-  nameInput.style.marginBottom = "8px";
+  const colorLabel = document.createElement("span"); colorLabel.className = "settings-label"; colorLabel.textContent = "색상 선택";
+  const colorInput = document.createElement("input"); colorInput.type = "color"; colorInput.value = toHex(cat.color);
 
-  const colorLabel = document.createElement("span");
-  colorLabel.className = "settings-label";
-  colorLabel.textContent = "색상 선택";
+  const btnRow = document.createElement("div"); btnRow.className = "settings-row"; btnRow.style.marginTop = "12px";
+  const cancelBtn = document.createElement("button"); cancelBtn.className = "settings-btn btn-cancel"; cancelBtn.textContent = "취소";
+  cancelBtn.onclick = () => { panel.remove(); activeSettingsPanel = null; };
 
-  const colorInput = document.createElement("input");
-  colorInput.type = "color";
-  colorInput.value = toHex(cat.color);
+  const confirmBtn = document.createElement("button"); confirmBtn.className = "settings-btn btn-confirm"; confirmBtn.textContent = "확인";
+  
+  const confirmAction = async () => {
+    playClickSound();
 
-  const btnRow = document.createElement("div");
-  btnRow.className = "settings-row";
-  btnRow.style.marginTop = "12px";
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "settings-btn btn-cancel";
-  cancelBtn.textContent = "취소";
-  cancelBtn.onclick = () => {
-    panel.remove();
-    activeSettingsPanel = null;
-  };
-
-  const confirmBtn = document.createElement("button");
-  confirmBtn.className = "settings-btn btn-confirm";
-  confirmBtn.textContent = "확인";
-  confirmBtn.onclick = () => {
     cat.name = nameInput.value || cat.name;
     cat.color = colorInput.value;
-
-    let logUpdated = false;
+    
+    // 오늘 기록 동기화
     if (todayLog && todayLog.sessions) {
-      todayLog.sessions.forEach(session => {
-        if (session.catId === cat.id) {
-          session.color = cat.color;
-          session.name = cat.name; // 이름도 업데이트
-          logUpdated = true;
-        }
-      });
+        todayLog.sessions.forEach(session => {
+            if (session.catId === cat.id) {
+                session.color = cat.color;
+                session.name = cat.name;
+            }
+        });
     }
 
-    saveUserCategories();
-    if (logUpdated && currentUser) {
-      saveTodayLog();
-    }
+    await saveUserCategories();
+    if(currentUser) await saveTodayLog(); 
 
     if (activeCategory.id === cat.id) {
       activeCategory = cat;
       currentCategory.textContent = cat.name;
       drawRing();
     }
-    
-    renderCategories(); 
-    drawDailyRing(); 
+    renderCategories();
+    if (selectedDateKey === getTodayKey()) {
+      viewLog = todayLog;
+      drawDailyRing(viewLog);
+      renderTimeGrid(viewLog);
+    }
     updateTodayCalendarBlock();
-
+    
     panel.remove();
     activeSettingsPanel = null;
   };
 
-  btnRow.appendChild(cancelBtn);
-  btnRow.appendChild(confirmBtn);
+  confirmBtn.onclick = confirmAction;
 
-  const deleteBtn = document.createElement("button");
-  deleteBtn.className = "settings-btn btn-delete";
-  deleteBtn.textContent = "카테고리 삭제";
-  deleteBtn.onclick = () => {
+  nameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault(); 
+        e.stopPropagation(); 
+        confirmAction(); 
+    }
+  });
+
+  const deleteBtn = document.createElement("button"); deleteBtn.className = "settings-btn btn-delete"; deleteBtn.textContent = "카테고리 삭제";
+  deleteBtn.onclick = async () => {
     if(confirm("정말 이 카테고리를 삭제하시겠습니까?\n(과거 기록은 유지됩니다)")) {
       categories = categories.filter(c => c.id !== cat.id);
       if (activeCategory.id === cat.id) {
@@ -347,21 +381,17 @@ function openSettings(cat, triggerElement) {
         drawRing();
       }
       renderCategories();
-      saveUserCategories();
-      
+      await saveUserCategories();
       panel.remove();
       activeSettingsPanel = null;
     }
   };
 
-  panel.appendChild(nameLabel);
-  panel.appendChild(nameInput);
-  panel.appendChild(colorLabel);
-  panel.appendChild(colorInput);
-  panel.appendChild(btnRow); 
-  panel.appendChild(deleteBtn); 
-
+  btnRow.append(cancelBtn, confirmBtn);
+  panel.append(nameLabel, nameInput, colorLabel, colorInput, btnRow, deleteBtn);
   activeSettingsPanel = panel;
+  
+  nameInput.focus();
 }
 
 function toHex(colorStr) {
@@ -372,28 +402,9 @@ function toHex(colorStr) {
 }
 
 document.addEventListener("mousedown", (e) => {
-  if (activeSettingsPanel && 
-      !activeSettingsPanel.contains(e.target) && 
-      !e.target.closest(".category-settings")) {
+  if (activeSettingsPanel && !activeSettingsPanel.contains(e.target) && !e.target.closest(".category-settings")) {
     activeSettingsPanel.remove();
     activeSettingsPanel = null;
-  }
-});
-
-/* ===============================
-   Focus Mode Logic
-=============================== */
-function toggleFocusMode() {
-  document.body.classList.toggle("focus-mode");
-  const isFocus = document.body.classList.contains("focus-mode");
-  focusToggleBtn.textContent = isFocus ? "✕" : "⛶";
-}
-
-focusToggleBtn.onclick = toggleFocusMode;
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.body.classList.contains("focus-mode")) {
-    toggleFocusMode();
   }
 });
 
@@ -401,26 +412,28 @@ document.addEventListener("keydown", (e) => {
    Timer Logic & Tracking
 =============================== */
 function updateTimer() {
-  remainingSeconds--;
-  trackCurrentSecond();
-
-  if (remainingSeconds <= 0) {
+  if (remainingSeconds > 0) {
+    remainingSeconds--;
+    trackCurrentSecond();
+    drawRing();
+    renderTime();
+  } else {
     stopTimerLogic(); 
     remainingSeconds = 0;
+    drawRing();
+    renderTime();
     playAlarmSound();
   }
-  
-  drawRing();
-  renderTime();
 }
 
-function startTimerLogic() {
-  if (!timerInterval && remainingSeconds > 0) {
+async function startTimerLogic() {
+  if (timerInterval) return; 
+
+  if (remainingSeconds > 0) {
     timerInterval = setInterval(updateTimer, 1000);
     canvas.classList.add("running");
     mainActionBtn.textContent = "정지"; 
-    drawRing();
-    requestWakeLock(); // [NEW] 타이머 시작 시 화면 켜짐 유지 요청
+    requestWakeLock().catch(e => console.log('WakeLock error', e));
   }
 }
 
@@ -430,46 +443,56 @@ function stopTimerLogic() {
     timerInterval = null;
     canvas.classList.remove("running");
     mainActionBtn.textContent = "시작"; 
-    drawRing();
-    saveTodayLog();
-    releaseWakeLock(); // [NEW] 타이머 정지 시 화면 켜짐 유지 해제
+    saveTodayLog(); 
+    releaseWakeLock();
   }
 }
 
 function trackCurrentSecond() {
   if (!activeCategory) return;
+  
+  if (!todayLog) todayLog = { sessions: [], totals: {}, memo: "" };
+  if (!todayLog.sessions) todayLog.sessions = [];
+  if (!todayLog.totals) todayLog.totals = {};
+
   const now = new Date();
-  
-  const lastSession = todayLog.sessions[todayLog.sessions.length - 1];
   const currentTime = now.getTime();
+  const lastSession = todayLog.sessions[todayLog.sessions.length - 1];
   
-  // 같은 카테고리로 1.5초 이내 연속 기록이면 시간 연장
+  // 1.5초 이내에 연속된 기록은 같은 세션으로 연장
   if (lastSession && 
       lastSession.catId === activeCategory.id && 
       (currentTime - lastSession.end) < 1500) {
     lastSession.end = currentTime; 
-    // 색상과 이름 최신화 (삭제 대비)
     lastSession.color = activeCategory.color;
     lastSession.name = activeCategory.name;
   } else {
-    // 새 세션 시작 시, 현재의 이름과 색상을 스냅샷으로 저장
     todayLog.sessions.push({
       catId: activeCategory.id,
       color: activeCategory.color,
-      name: activeCategory.name, // [중요] 이름 저장 (삭제되어도 기록 남음)
+      name: activeCategory.name,
       start: currentTime,
       end: currentTime
     });
   }
 
-  // 총 시간 업데이트
   if (!todayLog.totals[activeCategory.id]) {
     todayLog.totals[activeCategory.id] = 0;
   }
   todayLog.totals[activeCategory.id] += 1;
 
-  drawDailyRing();
-  updateTodayCalendarBlock(); // 실시간 캘린더 색상 업데이트 (즉시 반영)
+  // [수정: Issue 1 해결 - 실시간 연동 지연]
+  // 오늘 날짜를 보고 있다면 뷰 로그를 메모리와 즉시 동기화하고 강제로 다시 그립니다.
+  if (selectedDateKey === getTodayKey()) {
+    viewLog = todayLog; // 참조 연결
+    drawDailyRing(viewLog); // 링 즉시 갱신
+    
+    // 만약 기록 탭이 열려 있다면, 그리드도 같이 갱신 (즉시 반영)
+    if (!recordView.classList.contains("hidden")) {
+        renderTimeGrid(viewLog);
+    }
+  }
+  updateTodayCalendarBlock();
 }
 
 function renderTime() {
@@ -495,6 +518,7 @@ resetBtn.onclick = () => {
 };
 
 setTimeBtn.onclick = () => {
+  stopTimerLogic(); 
   const minutes = Math.min(60, Math.max(1, Number(minuteInput.value)));
   totalSeconds = minutes * 60;
   remainingSeconds = totalSeconds;
@@ -502,9 +526,6 @@ setTimeBtn.onclick = () => {
   renderTime();
 };
 
-/* ===============================
-   Main Ring Visuals
-=============================== */
 function drawRing() {
   const dpr = window.devicePixelRatio || 1;
   const size = 260;
@@ -516,7 +537,8 @@ function drawRing() {
   ctx.clearRect(0, 0, size, size);
 
   const maxFullSeconds = 3600; 
-  const progress = remainingSeconds / maxFullSeconds;
+  const progress = remainingSeconds / maxFullSeconds; 
+  
   const center = size / 2;
   const radius = 90;
   const lineWidth = 38; 
@@ -528,16 +550,14 @@ function drawRing() {
   ctx.lineWidth = lineWidth;
   ctx.lineCap = "round"; 
   ctx.globalAlpha = 0.15; 
-  ctx.shadowBlur = 0; 
   ctx.stroke();
 
   if (progress > 0) {
     ctx.beginPath();
-    ctx.arc(
-      center, center, radius,
-      -Math.PI / 2,
-      -Math.PI / 2 + Math.PI * 2 * progress
-    );
+    const startAngle = -Math.PI / 2;
+    const endAngle = startAngle + (Math.PI * 2 * progress);
+    
+    ctx.arc(center, center, radius, startAngle, endAngle);
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.lineCap = "round"; 
@@ -551,190 +571,245 @@ function drawRing() {
 }
 
 /* ===============================
-   Tracker: Daily 24h Ring & Tooltip
+   View Switching & Focus Mode
 =============================== */
-// [UX 개선] 링 위치 및 크기 정밀 조정 (글씨 가림 해결)
-const RING_WIDTH = 40; 
-// 링을 바깥쪽으로 조금 밀어내고, 숫자 위치도 조정
-const OUTER_R = 170;   // 기존 165 -> 170 (확장)
-const INNER_R = 120;   // 기존 115 -> 120 (확장 - 중앙 텍스트와 거리 확보)
+openRecordBtn.onclick = () => {
+  timerView.classList.add("hidden");
+  recordView.classList.remove("hidden");
+  if (!selectedDateKey) selectedDateKey = getTodayKey();
+  loadMemoData(selectedDateKey);
+  renderTimeGrid(viewLog); 
+};
 
-function drawDailyRing() {
-  const dpr = window.devicePixelRatio || 1;
-  const size = 440; 
-  dailyCanvas.width = size;
-  dailyCanvas.height = size;
-  
-  const ctx = dailyCtx;
-  const center = size / 2;
-  
-  ctx.clearRect(0, 0, size, size);
-
-  ctx.fillStyle = "#ffffff"; 
-  ctx.font = "bold 24px -apple-system, sans-serif"; 
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // 숫자 위치: 링 바깥쪽으로 더 밀어냄 (205 -> 210)
-  const numRadius = size / 2 - 10; 
-  for (let i = 1; i <= 12; i++) {
-    const angle = (i - 3) * (Math.PI * 2) / 12;
-    const x = center + Math.cos(angle) * numRadius;
-    const y = center + Math.sin(angle) * numRadius;
-    ctx.fillText(i, x, y);
+closeRecordBtn.onclick = () => {
+  if (isDeleteMode) {
+      exitDeleteMode(false); 
   }
+  recordView.classList.add("hidden");
+  timerView.classList.remove("hidden");
+  hideSlashMenu();
+};
 
-  // 배경 링
-  ctx.globalAlpha = 0.15;
-  ctx.lineWidth = RING_WIDTH;
-  ctx.lineCap = "round";
-  
-  ctx.beginPath();
-  ctx.arc(center, center, OUTER_R, 0, Math.PI * 2);
-  ctx.strokeStyle = "#888"; 
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(center, center, INNER_R, 0, Math.PI * 2);
-  ctx.strokeStyle = "#888";
-  ctx.stroke();
-
-  ctx.globalAlpha = 1;
-
-  todayLog.sessions.forEach(session => {
-    const startDate = new Date(session.start);
-    const endDate = new Date(session.end);
-    drawSessionArc(ctx, startDate, endDate, INNER_R, OUTER_R, session.color, RING_WIDTH, center);
-  });
+function enterFocusMode() {
+  document.body.classList.add("focus-mode");
+  exitFocusBtn.classList.remove("hidden");
 }
 
-function drawSessionArc(ctx, start, end, innerR, outerR, color, width, center) {
-  const dayStart = new Date(start);
-  dayStart.setHours(0,0,0,0);
-  
-  const startSec = (start.getTime() - dayStart.getTime()) / 1000;
-  const endSec = (end.getTime() - dayStart.getTime()) / 1000;
-  
-  const halfDay = 43200; // 12시간 = 43200초
-
-  const draw = (radius, s, e) => {
-    if (s >= e) return;
-    // 0초 = -90도(12시 방향)
-    const startAngle = (s / halfDay) * (Math.PI * 2) - (Math.PI / 2);
-    const endAngle = (e / halfDay) * (Math.PI * 2) - (Math.PI / 2);
-    
-    ctx.beginPath();
-    ctx.arc(center, center, radius, startAngle, endAngle);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.shadowBlur = 12; 
-    ctx.shadowColor = color;
-    ctx.stroke();
-    ctx.shadowBlur = 0; 
-  };
-
-  // 오전 (0 ~ 12시) : Inner Ring
-  if (startSec < halfDay) {
-    const segEnd = Math.min(endSec, halfDay);
-    draw(innerR, startSec, segEnd);
-  }
-
-  // 오후 (12 ~ 24시) : Outer Ring
-  if (endSec > halfDay) {
-    const segStart = Math.max(startSec, halfDay);
-    draw(outerR, segStart - halfDay, endSec - halfDay);
-  }
+function exitFocusMode() {
+  document.body.classList.remove("focus-mode");
+  exitFocusBtn.classList.add("hidden");
 }
 
-// [UX 핵심 개선] 감도 및 인식 범위 로직 동기화
-dailyCanvas.addEventListener("mousemove", (e) => {
-  const rect = dailyCanvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
+mainFocusBtn.onclick = enterFocusMode;
+recordFocusBtn.onclick = enterFocusMode;
+exitFocusBtn.onclick = exitFocusMode;
 
-  const scaleX = dailyCanvas.width / rect.width;
-  const scaleY = dailyCanvas.height / rect.height;
-  
-  const x = mouseX * scaleX;
-  const y = mouseY * scaleY;
-  const center = dailyCanvas.width / 2; // 220
-  
-  const dx = x - center;
-  const dy = y - center;
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  let angle = Math.atan2(dy, dx); 
-  
-  let chartAngle = angle + Math.PI / 2;
-  if (chartAngle < 0) chartAngle += Math.PI * 2; 
-  
-  const halfDay = 43200;
-  const secondsInRing = (chartAngle / (Math.PI * 2)) * halfDay;
-  
-  // [인식 로직 변경] 변경된 반지름에 맞춰 판정 범위 수정
-  // Inner(120), Outer(170) -> 중간값 약 145
-  let checkTime = null;
-  const SPLIT_RADIUS = 145; // 내/외측 구분선
-  const MIN_TOUCH_R = 80;   // 중앙 텍스트 침범 방지 (증가)
-  const MAX_TOUCH_R = 215;  // 캔버스 끝
-
-  if (dist > MIN_TOUCH_R && dist <= SPLIT_RADIUS) {
-    // 1. 안쪽 링 (오전)
-    checkTime = secondsInRing;
-  } else if (dist > SPLIT_RADIUS && dist < MAX_TOUCH_R) {
-    // 2. 바깥쪽 링 (오후)
-    checkTime = secondsInRing + halfDay;
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("focus-mode")) {
+    exitFocusMode();
   }
+});
 
-  if (checkTime !== null) {
-    const hoveredSession = todayLog.sessions.find(s => {
-      const dayStart = new Date(s.start);
-      dayStart.setHours(0,0,0,0);
-      const sSec = (s.start - dayStart.getTime()) / 1000;
-      const eSec = (s.end - dayStart.getTime()) / 1000;
-      return checkTime >= sSec && checkTime <= eSec;
-    });
-
-    if (hoveredSession) {
-      // 해당 부분에서만 소요된 시간 계산 (세션 길이)
-      const durationMin = Math.max(1, Math.round((hoveredSession.end - hoveredSession.start)/1000/60));
-      
-      // 카테고리 이름: 저장된 이름 우선 (삭제 대비)
-      let catName = hoveredSession.name;
-      if (!catName) {
-         const cat = categories.find(c => c.id === hoveredSession.catId);
-         catName = cat ? cat.name : "삭제된 카테고리";
-      }
-      
-      showTooltip(`${catName}\n⏱ ${durationMin}분`, e.clientX, e.clientY);
-      dailyCanvas.style.cursor = "pointer";
-    } else {
-      hideTooltip();
-      dailyCanvas.style.cursor = "crosshair";
-    }
+/* ===============================
+   [NEW] Delete Mode Logic
+=============================== */
+deleteModeBtn.onclick = () => {
+  if (!viewLog || !viewLog.sessions) return;
+  
+  if (!isDeleteMode) {
+    enterDeleteMode();
   } else {
-    hideTooltip();
-    dailyCanvas.style.cursor = "default";
+    exitDeleteMode(false); 
   }
-});
+};
 
-dailyCanvas.addEventListener("mouseleave", () => {
-  hideTooltip();
-});
+function enterDeleteMode() {
+  isDeleteMode = true;
+  deleteModeBtn.classList.add("active");
+  editControls.classList.remove("hidden");
+  gridTitleText.classList.add("hidden");
+  
+  tempLogData = JSON.parse(JSON.stringify(viewLog));
+  undoStack = [JSON.stringify(tempLogData)];
+  redoStack = [];
+  updateUndoRedoButtons();
+  
+  timeGrid.classList.add("delete-mode");
+  renderTimeGrid(tempLogData);
+}
 
+function exitDeleteMode(saveChanges) {
+  isDeleteMode = false;
+  deleteModeBtn.classList.remove("active");
+  editControls.classList.add("hidden");
+  timeGrid.classList.remove("delete-mode");
+  
+  gridTitleText.classList.remove("hidden");
+  
+  if (saveChanges && tempLogData) {
+    viewLog = tempLogData;
+    
+    // [수정: Issue 2 해결 - 삭제 동기화]
+    // 오늘 날짜를 수정했다면, 실시간 타이머 기록 변수(todayLog)도 반드시 동기화
+    if (selectedDateKey === getTodayKey()) {
+        todayLog = JSON.parse(JSON.stringify(viewLog));
+    }
 
-function updateDateDisplay() {
-  const now = new Date();
-  const options = { year: 'numeric', month: 'long', day: 'numeric' };
-  todayDateEl.textContent = now.toLocaleDateString('ko-KR', options);
+    saveLogToDB(selectedDateKey, viewLog);
+    
+    // 순서 중요: 뷰로그 갱신 -> 그리드 렌더링 -> 링 렌더링 -> 캘린더 업데이트
+    renderTimeGrid(viewLog);
+    drawDailyRing(viewLog);
+    updateTodayCalendarBlock(); 
+    
+  } else {
+    renderTimeGrid(viewLog);
+  }
+  
+  tempLogData = null;
+  undoStack = [];
+  redoStack = [];
+}
+
+// 블록 클릭 시 삭제 처리
+function handleBlockClick(startSec, endSec) {
+  if (!isDeleteMode || !tempLogData) return;
+  
+  const newSessions = [];
+  let changed = false;
+
+  tempLogData.sessions.forEach(session => {
+    const sDate = new Date(session.start);
+    const eDate = new Date(session.end);
+    const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
+    const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
+
+    if (eSec <= startSec || sSec >= endSec) {
+      newSessions.push(session);
+      return;
+    }
+
+    changed = true;
+    
+    // 잘라내기
+    if (sSec < startSec) {
+      newSessions.push({
+        ...session,
+        end: new Date(sDate.setHours(0,0,0,0) + startSec * 1000).getTime()
+      });
+    }
+    if (eSec > endSec) {
+      newSessions.push({
+        ...session,
+        start: new Date(sDate.setHours(0,0,0,0) + endSec * 1000).getTime()
+      });
+    }
+  });
+
+  if (changed) {
+    undoStack.push(JSON.stringify(tempLogData));
+    redoStack = []; 
+    
+    tempLogData.sessions = newSessions;
+    
+    renderTimeGrid(tempLogData);
+    updateUndoRedoButtons();
+  }
+}
+
+undoBtn.onclick = () => {
+  if (undoStack.length > 0) {
+    redoStack.push(JSON.stringify(tempLogData));
+    const prevData = undoStack.pop();
+    tempLogData = JSON.parse(prevData);
+    renderTimeGrid(tempLogData);
+    updateUndoRedoButtons();
+  }
+};
+
+redoBtn.onclick = () => {
+  if (redoStack.length > 0) {
+    undoStack.push(JSON.stringify(tempLogData));
+    const nextData = redoStack.pop();
+    tempLogData = JSON.parse(nextData);
+    renderTimeGrid(tempLogData);
+    updateUndoRedoButtons();
+  }
+};
+
+cancelDeleteBtn.onclick = () => exitDeleteMode(false);
+confirmDeleteBtn.onclick = () => exitDeleteMode(true);
+
+function updateUndoRedoButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+async function saveLogToDB(dateKey, logData) {
+  if (!currentUser) return;
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "logs", dateKey), logData, { merge: true });
+  } catch(e) { console.error("Save Error", e); }
 }
 
 /* ===============================
-   Tracker: Monthly Calendar & Tooltip
+   Calendar & Grid (Modified for Delete)
 =============================== */
+function renderTimeGrid(logData) {
+  timeGrid.innerHTML = "";
+  
+  for (let h = 0; h < 24; h++) {
+    const row = document.createElement("div");
+    row.className = "time-row"; 
+
+    const label = document.createElement("div");
+    label.className = "time-row-label";
+    label.textContent = `${h}시`;
+    row.appendChild(label);
+
+    const blockContainer = document.createElement("div");
+    blockContainer.className = "time-row-blocks";
+    
+    for (let b = 0; b < 6; b++) {
+      const block = document.createElement("div");
+      block.className = "time-block";
+      
+      const blockStartSec = (h * 3600) + (b * 600);
+      const blockEndSec = blockStartSec + 600; 
+
+      let hasSession = null;
+      if (logData && logData.sessions) {
+         hasSession = logData.sessions.find(s => {
+           const sDate = new Date(s.start);
+           const eDate = new Date(s.end);
+           const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
+           const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
+           return (sSec < blockEndSec && eSec > blockStartSec);
+         });
+      }
+
+      if (hasSession) {
+         block.style.background = hasSession.color;
+         block.title = `${hasSession.name}`;
+         block.classList.add("has-data");
+      }
+      
+      block.onclick = () => {
+          if (isDeleteMode && hasSession) {
+              handleBlockClick(blockStartSec, blockEndSec);
+          }
+      };
+
+      blockContainer.appendChild(block);
+    }
+    row.appendChild(blockContainer);
+    timeGrid.appendChild(row);
+  }
+}
+
 function renderCalendar(baseDate) {
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth(); 
-
   calTitle.textContent = `${year}. ${String(month + 1).padStart(2, '0')}`;
   calGrid.innerHTML = "";
 
@@ -753,27 +828,48 @@ function renderCalendar(baseDate) {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const block = document.createElement("div");
     block.className = "day-block";
-    block.dataset.date = `${year}.${String(month+1).padStart(2,'0')}.${String(d).padStart(2,'0')}`;
+    const dStr = String(d).padStart(2,'0');
+    const mStr = String(month+1).padStart(2,'0');
+    const dateKey = `${year}-${mStr}-${dStr}`;
     
-    // 기본 툴팁
+    block.dataset.date = `${year}.${mStr}.${dStr}`;
+    block.dataset.key = dateKey;
     block.dataset.tooltip = `${block.dataset.date}`; 
 
-    const today = new Date();
-    if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) {
+    if (dateKey === getTodayKey()) {
       block.classList.add("today");
       block.id = "todayBlock"; 
     }
+    if (dateKey === selectedDateKey) {
+        block.classList.add("selected");
+    }
 
-    // 마우스 이벤트 (툴팁)
+    block.onclick = async () => {
+        if (isDeleteMode) {
+            if(!confirm("편집 중인 내용이 있습니다. 저장하지 않고 이동하시겠습니까?")) return;
+            exitDeleteMode(false);
+        }
+
+        const prev = document.querySelector(".day-block.selected");
+        if(prev) prev.classList.remove("selected");
+        block.classList.add("selected");
+
+        selectedDateKey = dateKey;
+        
+        viewLog = await loadDateLog(dateKey);
+        drawDailyRing(viewLog);
+        todayDateEl.textContent = `${year}년 ${month+1}월 ${d}일`;
+
+        loadMemoData(dateKey);
+        renderTimeGrid(viewLog);
+    };
+
     block.addEventListener("mousemove", (e) => {
       const tip = block.dataset.tooltip || block.dataset.date;
       showTooltip(tip, e.clientX, e.clientY);
     });
-    block.addEventListener("mouseleave", () => {
-      hideTooltip();
-    });
+    block.addEventListener("mouseleave", hideTooltip);
 
-    // 비동기 데이터 로드 및 적용
     loadAndApplyDailyData(year, month, d, block);
     calGrid.appendChild(block);
   }
@@ -781,98 +877,48 @@ function renderCalendar(baseDate) {
 
 async function loadAndApplyDailyData(year, month, day, blockElement) {
   if (!currentUser) return;
-  
-  const dateKey = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  const todayKey = getTodayKey();
-  
+  const dateKey = blockElement.dataset.key;
   let data = null;
 
-  // [중요] 오늘 날짜면 DB대신 메모리의 최신 todayLog 사용 (실시간 반영 위함)
-  if (dateKey === todayKey) {
+  if (dateKey === getTodayKey()) {
     data = todayLog;
   } else {
     try {
       const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
       const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        data = docSnap.data();
-      }
-    } catch (e) {
-      // 에러 무시
-    }
+      if (docSnap.exists()) data = docSnap.data();
+    } catch (e) {}
   }
 
   if (data && data.totals && Object.keys(data.totals).length > 0) {
-    // 가장 오래한 카테고리 찾기
-    let maxSec = -1;
-    let maxCatId = null;
-    let totalDaySec = 0; // 하루 총 집중 시간 (필요시 사용)
-
+    let maxSec = -1, maxCatId = null;
     for (const [catId, sec] of Object.entries(data.totals)) {
-      if (sec > maxSec) {
-        maxSec = sec;
-        maxCatId = catId;
-      }
-      totalDaySec += sec; // 전체 시간 합산
+      if (sec > maxSec) { maxSec = sec; maxCatId = catId; }
     }
-
     if (maxCatId) {
-      // 1. 현재 카테고리 목록에서 검색
-      let catName = "";
-      let catColor = "";
-      
+      let catName = "", catColor = "";
       const liveCat = categories.find(c => c.id === maxCatId);
-      
       if (liveCat) {
-        catName = liveCat.name;
-        catColor = liveCat.color;
-      } else {
-        // 2. 목록에 없으면(삭제됨), 로그의 세션 기록에서 정보 추출 (복원)
-        if (data.sessions) {
-          const session = data.sessions.find(s => s.catId === maxCatId);
-          if (session) {
-            catColor = session.color || "#666"; // 색상 복원
-            catName = session.name || "삭제된 카테고리"; // 이름 복원
-          }
-        }
+        catName = liveCat.name; catColor = liveCat.color;
+      } else if (data.sessions) {
+        const session = data.sessions.find(s => s.catId === maxCatId);
+        if (session) { catColor = session.color; catName = session.name; }
       }
-      if(!catName) catName = "알 수 없음";
-
-      // 색상 적용
-      if (catColor) {
-        blockElement.style.background = catColor;
-      }
-
-      // [요청 사항 해결] 툴팁 정보: 날짜 + 총 해당 카테고리 소모 시간 + 해당 카테고리 이름
-      // *주의: 해당 카테고리의 '총 시간'을 표시합니다.
+      
+      if (catColor) blockElement.style.background = catColor;
       
       const mainHours = Math.floor(maxSec / 3600);
       const mainMinutes = Math.floor((maxSec % 3600) / 60);
-      
-      // 포맷:
-      // 2026.01.30
-      // 10시간 20분
-      // 공부
-      
-      let timeStr = "";
-      if (mainHours > 0) timeStr += `${mainHours}시간 `;
+      let timeStr = mainHours > 0 ? `${mainHours}시간 ` : "";
       timeStr += `${mainMinutes}분`;
 
-      blockElement.dataset.tooltip = 
-        `${blockElement.dataset.date}\n` +
-        `⏱ ${timeStr}\n` +
-        `${catName}`;
+      blockElement.dataset.tooltip = `${blockElement.dataset.date}\n⏱ ${timeStr}\n${catName || "삭제된 카테고리"}`;
     }
-  } else {
-      // 데이터가 없는 날
-      blockElement.dataset.tooltip = `${blockElement.dataset.date}\n기록 없음`;
-      blockElement.style.background = "#3a3a3c"; // 기본색 복원
   }
 }
 
 function updateTodayCalendarBlock() {
   const block = document.getElementById("todayBlock");
-  // 오늘 날짜 블록이 있으면 강제로 다시 계산하여 색상/툴팁 갱신
   if (block) {
     const now = new Date();
     loadAndApplyDailyData(now.getFullYear(), now.getMonth(), now.getDate(), block);
@@ -888,24 +934,169 @@ nextMonthBtn.onclick = () => {
   renderCalendar(currentCalDate);
 };
 
-/* ===============================
-   Auth & Data Sync
-=============================== */
-function getTodayKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-}
+const RING_WIDTH = 40; 
+const INNER_R = 120; // 0~12시
+const OUTER_R = 170; // 12~24시
 
-async function saveTodayLog() {
-  if (!currentUser) return;
-  const dateKey = getTodayKey();
-  try {
-    await setDoc(doc(db, "users", currentUser.uid, "logs", dateKey), todayLog, { merge: true });
-  } catch (e) {
-    console.error("로그 저장 실패:", e);
+function drawDailyRing(logData) {
+  const dpr = window.devicePixelRatio || 1;
+  const size = 440; 
+  dailyCanvas.width = size;
+  dailyCanvas.height = size;
+  
+  const ctx = dailyCtx;
+  const center = size / 2;
+  
+  ctx.clearRect(0, 0, size, size);
+
+  // 중앙 텍스트
+  ctx.fillStyle = "#ffffff"; 
+  ctx.font = "bold 24px -apple-system, sans-serif"; 
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  
+  // 시간 숫자
+  const numRadius = size / 2 - 10; 
+  for (let i = 1; i <= 12; i++) {
+    const angle = (i - 3) * (Math.PI * 2) / 12;
+    const x = center + Math.cos(angle) * numRadius;
+    const y = center + Math.sin(angle) * numRadius;
+    ctx.fillText(i, x, y);
+  }
+
+  // 1. 배경 링 (회색)
+  ctx.lineWidth = RING_WIDTH;
+  ctx.lineCap = "butt"; 
+  
+  // AM
+  ctx.beginPath(); 
+  ctx.arc(center, center, INNER_R, 0, Math.PI * 2); 
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; 
+  ctx.stroke();
+
+  // PM
+  ctx.beginPath(); 
+  ctx.arc(center, center, OUTER_R, 0, Math.PI * 2); 
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; 
+  ctx.stroke();
+
+  // 2. 데이터 세션
+  if (logData && logData.sessions) {
+    logData.sessions.forEach(session => {
+      // [수정: Issue 4 해결 - 고스트 라인/렌더링 오류 방지]
+      // 데이터가 없거나 종료 시간이 시작 시간보다 앞서는 잘못된 데이터는 무시
+      if (!session.start || !session.end || session.end <= session.start) return;
+
+      const startDate = new Date(session.start);
+      const endDate = new Date(session.end);
+      drawSessionDual(ctx, startDate, endDate, session.color, center);
+    });
   }
 }
 
+function drawSessionDual(ctx, start, end, color, center) {
+  const dayStart = new Date(start);
+  dayStart.setHours(0,0,0,0);
+  
+  // 하루 중 초
+  const startSec = (start.getTime() - dayStart.getTime()) / 1000;
+  const endSec = (end.getTime() - dayStart.getTime()) / 1000;
+  
+  // [수정: Issue 4 해결 - 미세 실선/아티팩트 제거]
+  // 1초 미만(또는 계산 오차로 인한 아주 미세한 값)은 그리지 않음
+  if (endSec - startSec < 1) return;
+
+  const halfDay = 43200; // 12시간
+
+  const drawArc = (radius, s, e) => {
+    if (s >= e) return;
+    const startAngle = (s / halfDay) * (Math.PI * 2) - (Math.PI / 2);
+    const endAngle = (e / halfDay) * (Math.PI * 2) - (Math.PI / 2);
+    
+    ctx.beginPath();
+    ctx.arc(center, center, radius, startAngle, endAngle);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = RING_WIDTH;
+    ctx.lineCap = "butt"; 
+    ctx.stroke();
+  };
+
+  // AM
+  if (startSec < halfDay) {
+    const segEnd = Math.min(endSec, halfDay);
+    drawArc(INNER_R, startSec, segEnd);
+  }
+  
+  // PM
+  if (endSec > halfDay) {
+    const segStart = Math.max(startSec, halfDay);
+    drawArc(OUTER_R, segStart - halfDay, endSec - halfDay);
+  }
+}
+
+// 듀얼 링 마우스 오버
+dailyCanvas.addEventListener("mousemove", (e) => {
+  const rect = dailyCanvas.getBoundingClientRect();
+  const scaleX = dailyCanvas.width / rect.width;
+  const scaleY = dailyCanvas.height / rect.height;
+  
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  
+  const center = dailyCanvas.width / 2;
+  const dx = x - center;
+  const dy = y - center;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  
+  let angle = Math.atan2(dy, dx); 
+  let chartAngle = angle + Math.PI / 2;
+  if (chartAngle < 0) chartAngle += Math.PI * 2; 
+  
+  const halfDay = 43200; 
+  const timeInRing = (chartAngle / (Math.PI * 2)) * halfDay;
+  
+  let checkTime = null;
+  const halfWidth = RING_WIDTH / 2;
+  
+  if (dist >= INNER_R - halfWidth && dist <= INNER_R + halfWidth) {
+      checkTime = timeInRing; // AM
+  } else if (dist >= OUTER_R - halfWidth && dist <= OUTER_R + halfWidth) {
+      checkTime = timeInRing + halfDay; // PM
+  }
+
+  if (checkTime !== null && viewLog.sessions) {
+    const hoveredSession = viewLog.sessions.find(s => {
+      const dayStart = new Date(s.start);
+      dayStart.setHours(0,0,0,0);
+      const sSec = (s.start - dayStart.getTime()) / 1000;
+      const eSec = (s.end - dayStart.getTime()) / 1000;
+      return checkTime >= sSec && checkTime <= eSec;
+    });
+
+    if (hoveredSession) {
+      const durationMin = Math.max(1, Math.round((hoveredSession.end - hoveredSession.start)/1000/60));
+      let catName = hoveredSession.name || "삭제된 카테고리";
+      
+      const sTime = new Date(hoveredSession.start);
+      const eTime = new Date(hoveredSession.end);
+      const timeStr = `${sTime.getHours()}:${String(sTime.getMinutes()).padStart(2,'0')} ~ ${eTime.getHours()}:${String(eTime.getMinutes()).padStart(2,'0')}`;
+      
+      showTooltip(`${catName}\n⏱ ${durationMin}분\n(${timeStr})`, e.clientX, e.clientY);
+      dailyCanvas.style.cursor = "pointer";
+    } else {
+      hideTooltip();
+      dailyCanvas.style.cursor = "default";
+    }
+  } else {
+    hideTooltip();
+    dailyCanvas.style.cursor = "default";
+  }
+});
+dailyCanvas.addEventListener("mouseleave", hideTooltip);
+
+/* ===============================
+   Auth & Initialization
+=============================== */
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
@@ -926,61 +1117,72 @@ onAuthStateChanged(auth, async (user) => {
       } else {
         saveUserCategories();
       }
-    } catch(e) {
-      console.error("카테고리 로드 에러:", e);
-    }
-    
+    } catch(e) {}
     renderCategories();
     drawRing();
 
-    const dateKey = getTodayKey();
-    const docRef = doc(db, "users", user.uid, "logs", dateKey);
+    selectedDateKey = getTodayKey();
+    todayDateEl.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
     
     try {
+      const docRef = doc(db, "users", user.uid, "logs", selectedDateKey);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const dbData = docSnap.data();
         const combinedSessions = [...(dbData.sessions || []), ...(todayLog.sessions || [])];
-        
         const combinedTotals = { ...(dbData.totals || {}) };
         const localTotals = todayLog.totals || {};
         for (const [id, count] of Object.entries(localTotals)) {
           combinedTotals[id] = (combinedTotals[id] || 0) + count;
         }
-        
-        todayLog = { sessions: combinedSessions, totals: combinedTotals };
+        todayLog = { sessions: combinedSessions, totals: combinedTotals, memo: dbData.memo || "" };
         saveTodayLog();
       } else {
         saveTodayLog();
       }
-    } catch(e) {
-      console.error("로그 로드 에러:", e);
-    }
+    } catch(e) {}
 
-    drawDailyRing();
+    viewLog = todayLog; 
+    drawDailyRing(viewLog);
     renderCalendar(currentCalDate);
+    renderTimeGrid(viewLog); 
+    loadMemoData(selectedDateKey); 
 
   } else {
+    // [수정: Issue 3 해결 - 계정 데이터 잔존 문제]
+    // 로그아웃 시 타이머 정지 및 화면의 모든 데이터를 강제로 초기화합니다.
+    stopTimerLogic();
     currentUser = null;
-    todayLog = { sessions: [], totals: {} };
+    todayLog = { sessions: [], totals: {}, memo: "" };
+    viewLog = { sessions: [], totals: {}, memo: "" };
     categories = []; 
     activeCategory = { ...defaultCategory };
+    selectedDateKey = getTodayKey();
     
     authBtn.textContent = "Google 로그인";
     userProfile.classList.add("hidden");
     userName.classList.add("hidden");
     
+    // UI 요소 Deep Clean
+    categoryList.innerHTML = "";
+    editor.innerHTML = "";
+    
     renderCategories();
     drawRing();
-    drawDailyRing(); 
+    drawDailyRing({ sessions: [] }); 
     renderCalendar(currentCalDate); 
+    renderTimeGrid({ sessions: [] }); 
   }
 });
 
 authBtn.onclick = async () => {
   const user = auth.currentUser;
   if (user) {
-    await saveTodayLog(); 
+    // 로그아웃 전 타이머 강제 종료 및 저장
+    stopTimerLogic();
+    if (currentUser) {
+        await saveTodayLog(); 
+    }
     await signOut(auth);
   } else {
     await signInWithPopup(auth, googleProvider);
@@ -988,11 +1190,199 @@ authBtn.onclick = async () => {
 };
 
 /* ===============================
-   Initialization
+   Slash Menu Helper Functions
 =============================== */
-updateDateDisplay();
+function showSlashMenu(query) {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  
+  slashMenu.classList.remove("hidden");
+  slashMenu.style.top = `${rect.bottom + window.scrollY}px`;
+  slashMenu.style.left = `${rect.left + window.scrollX}px`;
+  
+  const items = slashMenu.querySelectorAll(".menu-item");
+  let hasVisible = false;
+  items.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    if (text.includes(query.toLowerCase())) {
+      item.style.display = "block";
+      hasVisible = true;
+    } else {
+      item.style.display = "none";
+    }
+    item.classList.remove("selected");
+  });
+  
+  slashMenuIndex = 0;
+  if (hasVisible) {
+    updateSlashMenuSelection();
+  } else {
+    hideSlashMenu();
+  }
+}
+
+function hideSlashMenu() {
+  slashMenu.classList.add("hidden");
+  slashMenuIndex = 0;
+}
+
+function updateSlashMenuSelection() {
+  const items = slashMenu.querySelectorAll(".menu-item");
+  const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
+  if (visibleItems.length === 0) return;
+  
+  if (slashMenuIndex >= visibleItems.length) slashMenuIndex = 0;
+  if (slashMenuIndex < 0) slashMenuIndex = visibleItems.length - 1;
+  
+  items.forEach(i => i.classList.remove("selected"));
+  visibleItems[slashMenuIndex].classList.add("selected");
+}
+
+function applySlashCommand(item) {
+  const type = item.dataset.type;
+  hideSlashMenu();
+  
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  
+  const node = range.startContainer;
+  const text = node.textContent;
+  const slashIdx = text.lastIndexOf("/");
+  if (slashIdx >= 0) {
+    const before = text.slice(0, slashIdx);
+    node.textContent = before;
+  }
+  
+  if (type === "h1") {
+    document.execCommand("formatBlock", false, "H1");
+  } else if (type === "h2") {
+    document.execCommand("formatBlock", false, "H2");
+  } else if (type === "ul") {
+    document.execCommand("insertUnorderedList");
+  } else if (type === "checkbox") {
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    range.insertNode(checkbox);
+    range.setStartAfter(checkbox);
+    range.setEndAfter(checkbox);
+    const space = document.createTextNode(" ");
+    range.insertNode(space);
+    range.setStartAfter(space);
+    range.setEndAfter(space);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } else if (type === "page") {
+    document.execCommand("insertHorizontalRule");
+  }
+}
+
+// [수정: Issue 5 해결 - 메모 자동 저장]
+// 디바운스를 적용하여 입력 1초 후 자동 저장
+editor.addEventListener("input", (e) => {
+    if (!currentUser) return;
+    
+    // 이전에 예약된 저장이 있다면 취소
+    if (saveTimeout) clearTimeout(saveTimeout);
+    
+    // 1초 뒤에 저장 실행
+    saveTimeout = setTimeout(async () => {
+        // 현재 보고 있는 날짜에 따라 분기 처리
+        if (selectedDateKey === getTodayKey()) {
+            todayLog.memo = editor.innerHTML;
+            viewLog.memo = editor.innerHTML; 
+            await saveTodayLog();
+        } else {
+            // 과거 날짜라면 viewLog만 업데이트 후 해당 날짜 문서에 저장
+            viewLog.memo = editor.innerHTML;
+            await saveLogToDB(selectedDateKey, viewLog);
+        }
+    }, 1000);
+});
+
+// Notion-like Slash Menu
+editor.addEventListener("keydown", (e) => {
+  if (!slashMenu.classList.contains("hidden")) {
+    const items = slashMenu.querySelectorAll(".menu-item");
+    const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      slashMenuIndex++;
+      updateSlashMenuSelection();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      slashMenuIndex--;
+      updateSlashMenuSelection();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (visibleItems.length > 0) {
+        applySlashCommand(visibleItems[slashMenuIndex]);
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+        e.preventDefault();
+        hideSlashMenu();
+        return;
+    }
+  }
+});
+
+editor.addEventListener("keyup", (e) => {
+  if (["ArrowUp", "ArrowDown", "Enter"].includes(e.key)) return;
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  const node = selection.anchorNode;
+  if (!node) return;
+  const text = node.textContent;
+  
+  if (text.trim().startsWith(">") && e.key === " ") {
+    const block = (node.nodeType === 3) ? node.parentNode : node;
+    const content = text.replace(">", "").trim();
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    summary.textContent = content; 
+    details.appendChild(summary);
+    if (block.parentNode === editor) {
+        editor.replaceChild(details, block);
+    } else {
+        block.textContent = "";
+        block.appendChild(details);
+    }
+    const range = document.createRange();
+    range.selectNodeContents(summary);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return;
+  }
+
+  const slashIdx = text.lastIndexOf("/");
+  if (slashIdx >= 0 && text.length - slashIdx < 10) { 
+    const query = text.slice(slashIdx + 1);
+    showSlashMenu(query);
+  } else {
+    hideSlashMenu();
+  }
+});
+
+slashMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('.menu-item');
+    if (item) {
+        applySlashCommand(item);
+    }
+});
+
+// Initial Render
 renderCategories();
 drawRing();
 renderTime();
-drawDailyRing();
+drawDailyRing({ sessions: [] });
 renderCalendar(currentCalDate);

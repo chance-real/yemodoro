@@ -10,6 +10,14 @@
 
 <div id="tooltip" class="custom-tooltip hidden"></div>
 
+<div id="slashMenu" class="slash-menu hidden">
+  <div class="menu-item selected" data-type="h1">대제목 1</div>
+  <div class="menu-item" data-type="h2">중제목 2</div>
+  <div class="menu-item" data-type="ul">글머리 기호</div>
+  <div class="menu-item" data-type="checkbox">체크박스</div>
+  <div class="menu-item" data-type="page">구분선 (페이지)</div>
+</div>
+
 <header class="top">
   <h1>예모도로</h1>
   <div class="auth">
@@ -24,28 +32,68 @@
     <h2>카테고리</h2>
     <div id="categoryList"></div>
     <div class="add-cat">
-      <input id="categoryInput" placeholder="카테고리" /> 
+      <input id="categoryInput" placeholder="카테고리 추가" /> 
       <button id="addCategoryBtn">추가</button>
     </div>
   </section>
 
-  <section class="card center">
-    <button id="focusToggleBtn" class="icon-btn top-right" title="집중 모드 (ESC로 종료)">⛶</button>
+  <section class="card center" id="centerCard">
     
-    <div id="timerContainer">
-      <div id="currentCategory">예모도로(기본_25분)</div>
-      <div id="timer">25:00</div>
-      <canvas id="ring" width="260" height="260"></canvas>
+    <div id="timerView" class="view-container">
+      <div class="focus-btn-container">
+        <button id="mainFocusBtn" class="focus-mode-btn">큰화면으로 보기</button>
+      </div>
+
+      <div id="timerContainer">
+        <div id="currentCategory">예모도로(기본_25분)</div>
+        <div id="timer">25:00</div>
+        <canvas id="ring" width="260" height="260"></canvas>
+      </div>
+
+      <div class="control-panel">
+        <div class="control-row">
+          <input id="minuteInput" type="number" min="1" max="60" value="25" />
+          <button id="setTimeBtn" class="small-btn">설정</button>
+        </div>
+        <div class="control-row">
+          <button id="resetBtn" class="secondary-btn">리셋</button>
+          <button id="mainActionBtn" class="primary-btn">시작</button>
+        </div>
+      </div>
+
+      <button id="openRecordBtn" class="record-btn-float">📝 하루 기록</button>
     </div>
 
-    <div class="control-panel">
-      <div class="control-row">
-        <input id="minuteInput" type="number" min="1" max="60" value="25" />
-        <button id="setTimeBtn" class="small-btn">설정</button>
+    <div id="recordView" class="view-container hidden">
+      <div class="record-header">
+        <button id="closeRecordBtn" class="back-btn">← 타이머로 돌아가기</button>
+        <button id="recordFocusBtn" class="focus-mode-btn small">큰화면으로 보기</button>
+        <span id="recordDateTitle">2026. 02. 01 기록</span>
       </div>
-      <div class="control-row">
-        <button id="resetBtn" class="secondary-btn">리셋</button>
-        <button id="mainActionBtn" class="primary-btn">시작</button>
+      
+      <div class="record-body">
+        <div class="record-left">
+          <div id="editor" class="notion-editor" contenteditable="true" placeholder="메모를 입력하세요... ('/'를 입력하여 명령어)"></div>
+        </div>
+        
+        <div class="record-right">
+          <div class="time-grid-header">
+            <span id="gridTitleText">시간별 기록 (1칸=10분)</span>
+            
+            <div class="delete-controls-wrapper">
+              <div id="editControls" class="edit-controls hidden">
+                <button id="undoBtn" class="control-icon-btn" title="이전">◀</button>
+                <button id="redoBtn" class="control-icon-btn" title="이후">▶</button>
+                <button id="cancelDeleteBtn" class="control-text-btn cancel">취소</button>
+                <button id="confirmDeleteBtn" class="control-text-btn confirm">확인</button>
+              </div>
+              <button id="deleteModeBtn" class="delete-mode-btn">🗑️ 지우기</button>
+            </div>
+
+          </div>
+          <div id="timeGrid" class="time-grid">
+            </div>
+        </div>
       </div>
     </div>
   </section>
@@ -81,6 +129,8 @@
     </div>
   </section>
 </main>
+
+<button id="exitFocusBtn" class="exit-focus-btn hidden">✕ 집중 모드 종료</button>
 
 <script type="module" src="script.js"></script>
 </body>
