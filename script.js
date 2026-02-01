@@ -91,6 +91,49 @@ let currentUser = null;
 let todayLog = { sessions: [], totals: {} }; 
 let currentCalDate = new Date(); 
 
+// [NEW] Screen Wake Lock 변수
+let wakeLock = null;
+
+/* ===============================
+   [NEW] Screen Wake Lock Logic
+=============================== */
+// 화면 켜짐 유지 요청 함수
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      // console.log('화면 켜짐 유지 활성화 (Wake Lock Active)');
+      
+      wakeLock.addEventListener('release', () => {
+        // console.log('화면 켜짐 유지 해제됨 (Wake Lock Released)');
+      });
+    } catch (err) {
+      console.error(`Wake Lock 요청 실패: ${err.name}, ${err.message}`);
+    }
+  }
+}
+
+// 화면 켜짐 유지 해제 함수
+function releaseWakeLock() {
+  if (wakeLock !== null) {
+    wakeLock.release()
+      .then(() => {
+        wakeLock = null;
+      })
+      .catch((err) => console.error(err));
+  }
+}
+
+// 탭 전환이나 창 최소화 후 돌아왔을 때, 타이머가 돌고 있다면 다시 잠금 요청
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock !== null && document.visibilityState === 'visible') {
+    // 이미 락이 걸려있었으나 시스템에 의해 해제되었을 수 있으므로 재요청
+    if (timerInterval) { 
+      await requestWakeLock();
+    }
+  }
+});
+
 /* ===============================
    Tooltip Logic (Global)
 =============================== */
@@ -377,6 +420,7 @@ function startTimerLogic() {
     canvas.classList.add("running");
     mainActionBtn.textContent = "정지"; 
     drawRing();
+    requestWakeLock(); // [NEW] 타이머 시작 시 화면 켜짐 유지 요청
   }
 }
 
@@ -388,6 +432,7 @@ function stopTimerLogic() {
     mainActionBtn.textContent = "시작"; 
     drawRing();
     saveTodayLog();
+    releaseWakeLock(); // [NEW] 타이머 정지 시 화면 켜짐 유지 해제
   }
 }
 
