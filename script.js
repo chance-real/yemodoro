@@ -97,8 +97,6 @@ function getTodayKey() {
 }
 
 // [핵심] 10분 단위(600초) 데이터 정제 함수
-// 1. 10분 미만(0~599초) 기록은 자동 삭제
-// 2. 19분 -> 10분으로 내림 처리 (Math.floor)
 function sanitizeLogs(logData) {
   if (!logData || !logData.sessions) return logData;
 
@@ -110,18 +108,18 @@ function sanitizeLogs(logData) {
     const UNIT = 600 * 1000; 
     let duration = session.end - session.start;
 
-    // 10분 미만이면 삭제 (저장하지 않음)
+    // 10분 미만이면 삭제
     if (duration < UNIT) return;
 
-    // 10분 단위로 내림 처리 (예: 19분 -> 10분)
+    // 10분 단위로 내림 처리
     const quantizedDuration = Math.floor(duration / UNIT) * UNIT;
     
-    // 종료 시간 재설정 (시작 시간 + 정제된 지속시간)
+    // 종료 시간 재설정
     const newEnd = session.start + quantizedDuration;
 
     // 카테고리별 합계 계산
     if (!newTotals[session.catId]) newTotals[session.catId] = 0;
-    newTotals[session.catId] += (quantizedDuration / 1000); // 초 단위 저장
+    newTotals[session.catId] += (quantizedDuration / 1000); 
 
     validSessions.push({
       ...session,
@@ -145,13 +143,11 @@ async function saveTodayLog() {
   
   // 저장 전에 10분 단위 정제 적용
   const cleanLog = sanitizeLogs(todayLog);
-  // 메모리 상의 todayLog도 정제된 것으로 교체 (UI 반영을 위해)
   todayLog = cleanLog;
   viewLog = cleanLog;
 
   try {
     await setDoc(doc(db, "users", currentUser.uid, "logs", getTodayKey()), cleanLog);
-    // UI 즉시 업데이트 (삭제된 9분 등 반영)
     drawDailyRing(cleanLog);
     renderTimeGrid(cleanLog);
   } catch(e) { console.error("오늘 기록 저장 실패:", e); }
@@ -163,7 +159,6 @@ async function loadDateLog(dateKey) {
     const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      // 불러올 때도 혹시 모르니 정제
       return sanitizeLogs(docSnap.data());
     }
   } catch (e) { console.error(e); }
@@ -492,7 +487,6 @@ function stopTimerLogic() {
     canvas.classList.remove("running");
     mainActionBtn.textContent = "시작"; 
     
-    // 타이머 멈출 때 10분 미만 기록 삭제 및 저장
     saveTodayLog(); 
     releaseWakeLock();
   }
@@ -525,20 +519,14 @@ function trackCurrentSecond() {
     });
   }
 
-  // 실시간 합계는 대략적으로 보여주지만, 저장은 정제된 값으로 함
   if (!todayLog.totals[activeCategory.id]) {
     todayLog.totals[activeCategory.id] = 0;
   }
   todayLog.totals[activeCategory.id] += 1;
 
   if (selectedDateKey === getTodayKey()) {
-    // 실시간 뷰에서는 일단 있는 그대로 보여주다가, 멈출 때 정제함
-    // 하지만 링/그리드가 너무 지저분해지는 것을 막기 위해, 그릴 때 필터링하는 방법도 있음
-    // 여기서는 일단 Raw Data로 보여주고 10분 되면 Grid 한 칸이 참.
     viewLog = todayLog; 
     
-    // 하지만 사용자가 '실시간으로 10분 단위로 채워지는걸' 원한다면 
-    // 그리는 시점에서 sanitizeLogs를 호출해서 그려야 함.
     const displayLog = sanitizeLogs(JSON.parse(JSON.stringify(todayLog)));
     drawDailyRing(displayLog); 
     
@@ -632,7 +620,6 @@ openRecordBtn.onclick = () => {
   recordView.classList.remove("hidden");
   if (!selectedDateKey) selectedDateKey = getTodayKey();
   loadMemoData(selectedDateKey);
-  // 열 때 정제된 뷰를 확실히 보여줌
   const cleanLog = sanitizeLogs(viewLog);
   renderTimeGrid(cleanLog); 
 };
@@ -685,7 +672,6 @@ function enterDeleteMode() {
   editControls.classList.remove("hidden");
   gridTitleText.classList.add("hidden");
   
-  // 편집 시작 전에도 정제된 데이터 기반
   tempLogData = sanitizeLogs(JSON.parse(JSON.stringify(viewLog)));
   undoStack = [JSON.stringify(tempLogData)];
   redoStack = [];
@@ -704,7 +690,6 @@ function exitDeleteMode(saveChanges) {
   gridTitleText.classList.remove("hidden");
   
   if (saveChanges && tempLogData) {
-    // 삭제 후 저장 시에도 sanitizeLogs를 한 번 더 거치면 안전함 (하지만 10분 단위 삭제라 이미 정제됨)
     viewLog = tempLogData;
     
     if (selectedDateKey === getTodayKey()) {
@@ -714,11 +699,10 @@ function exitDeleteMode(saveChanges) {
     saveLogToDB(selectedDateKey, viewLog);
     
     renderTimeGrid(viewLog);
-    drawDailyRing(viewLog); // 즉시 링에 반영 (100% 페어링)
+    drawDailyRing(viewLog); 
     updateTodayCalendarBlock(); 
     
   } else {
-    // 취소 시 원래대로
     renderTimeGrid(sanitizeLogs(viewLog));
   }
   
@@ -767,7 +751,6 @@ function handleBlockClick(startSec, endSec) {
     redoStack = []; 
     
     tempLogData.sessions = newSessions;
-    // 잘라낸 후에도 sanitizeLogs를 적용해 10분 미만 자투리가 생기면 없앰
     tempLogData = sanitizeLogs(tempLogData);
 
     renderTimeGrid(tempLogData);
@@ -816,7 +799,6 @@ async function saveLogToDB(dateKey, logData) {
 function renderTimeGrid(logData) {
   timeGrid.innerHTML = "";
   
-  // Grid를 그릴 때는 항상 정제된 데이터(10분 단위)를 기준으로 함
   const safeData = logData ? logData : { sessions: [] };
   
   for (let h = 0; h < 24; h++) {
@@ -846,9 +828,6 @@ function renderTimeGrid(logData) {
            const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
            const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
            
-           // 10분 단위로 정제되었으므로 겹치는 부분이 있으면 해당 블록은 채워짐
-           // (sSec < blockEndSec && eSec > blockStartSec)
-           // 단, 정제된 데이터는 정확히 600초 배수이므로 logic이 깔끔함
            return (sSec < blockEndSec && eSec > blockStartSec);
          });
       }
@@ -922,7 +901,7 @@ function renderCalendar(baseDate) {
         selectedDateKey = dateKey;
         
         const rawLog = await loadDateLog(dateKey);
-        viewLog = sanitizeLogs(rawLog); // 로드 시 정제
+        viewLog = sanitizeLogs(rawLog); 
         
         drawDailyRing(viewLog);
         todayDateEl.textContent = `${year}년 ${month+1}월 ${d}일`;
@@ -957,7 +936,6 @@ async function loadAndApplyDailyData(year, month, day, blockElement) {
     } catch (e) {}
   }
 
-  // 캘린더 표시용 데이터도 정제된 값을 기준
   if(data) data = sanitizeLogs(data);
 
   if (data && data.totals && Object.keys(data.totals).length > 0) {
@@ -1050,7 +1028,7 @@ function drawDailyRing(logData) {
   ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; 
   ctx.stroke();
 
-  // 2. 데이터 세션 (10분 단위 정제된 데이터만 들어옴)
+  // 2. 데이터 세션
   if (logData && logData.sessions) {
     logData.sessions.forEach(session => {
       if (!session.start || !session.end || session.end <= session.start) return;
@@ -1066,11 +1044,9 @@ function drawSessionDual(ctx, start, end, color, center) {
   const dayStart = new Date(start);
   dayStart.setHours(0,0,0,0);
   
-  // 하루 중 초
   const startSec = (start.getTime() - dayStart.getTime()) / 1000;
   const endSec = (end.getTime() - dayStart.getTime()) / 1000;
   
-  // 10분 이하는 이미 삭제되었으므로 그리기만 하면 됨
   if (endSec - startSec < 600) return; 
 
   const halfDay = 43200; // 12시간
@@ -1084,9 +1060,7 @@ function drawSessionDual(ctx, start, end, color, center) {
     ctx.arc(center, center, radius, startAngle, endAngle);
     ctx.strokeStyle = color;
     ctx.lineWidth = RING_WIDTH;
-    ctx.lineCap = "butt"; // 블록 형태 유지를 위해 butt
-    // 약간의 간격을 위해 선보다 살짝 작게 그리거나 strokeStyle 경계를 줄 수 있으나
-    // 사용자가 '100% 페어링'을 원하므로 꽉 채워서 그림
+    ctx.lineCap = "butt"; 
     ctx.stroke();
   };
 
@@ -1206,14 +1180,12 @@ onAuthStateChanged(auth, async (user) => {
         }
         todayLog = { sessions: combinedSessions, totals: combinedTotals, memo: dbData.memo || "" };
         
-        // 로드 후 즉시 정제 및 저장
         saveTodayLog();
       } else {
         saveTodayLog();
       }
     } catch(e) {}
 
-    // viewLog를 todayLog(이미 정제됨)와 연결
     viewLog = todayLog; 
     drawDailyRing(viewLog);
     renderCalendar(currentCalDate);
@@ -1268,12 +1240,10 @@ function showSlashMenu(query) {
   
   slashMenu.classList.remove("hidden");
   
-  // 에디터 위치 기반으로 메뉴 위치 조정
   const editorRect = editor.getBoundingClientRect();
   let top = rect.bottom + window.scrollY;
   let left = rect.left + window.scrollX;
   
-  // 화면 밖으로 나가지 않게 조정
   if (left + 160 > window.innerWidth) left = window.innerWidth - 170;
   
   slashMenu.style.top = `${top}px`;
@@ -1281,19 +1251,44 @@ function showSlashMenu(query) {
   
   const items = slashMenu.querySelectorAll(".menu-item");
   let hasVisible = false;
-  
-  // 첫 번째 항목이 기본 선택되도록 인덱스 초기화
-  slashMenuIndex = 0;
+  let firstVisibleIndex = -1;
+
+  // [UPDATED] 자음 검색 단축키 매핑
+  const shortcuts = {
+      'ㄱ': '글제목',
+      'ㅊ': '체크박스',
+      'ㅁ': '메모'
+  };
 
   items.forEach((item, index) => {
+    const itemText = item.textContent.toLowerCase();
+    const lowerQuery = query ? query.toLowerCase() : "";
+    
+    // 텍스트 포함 여부 또는 단축키(자음) 매칭 확인
+    let match = false;
+    if (!lowerQuery) {
+        match = true;
+    } else {
+        if (itemText.includes(lowerQuery)) match = true;
+        // 자음 매칭 확인 ('ㅊ' -> '체크박스' 포함 여부)
+        if (shortcuts[lowerQuery] && itemText.includes(shortcuts[lowerQuery])) match = true;
+    }
+
+    if (match) {
+        item.style.display = "flex";
+        if (firstVisibleIndex === -1) firstVisibleIndex = index;
+        hasVisible = true;
+    } else {
+        item.style.display = "none";
+    }
     item.classList.remove("selected");
-    if (index === 0) item.classList.add("selected");
-    item.style.display = "flex"; 
-    hasVisible = true;
   });
 
   if (!hasVisible) {
     hideSlashMenu();
+  } else {
+    slashMenuIndex = firstVisibleIndex;
+    if (slashMenuIndex >= 0) items[slashMenuIndex].classList.add("selected");
   }
 }
 
@@ -1307,10 +1302,11 @@ function updateSlashMenuSelection() {
   const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
   if (visibleItems.length === 0) return;
   
+  items.forEach(i => i.classList.remove("selected"));
+  
   if (slashMenuIndex >= visibleItems.length) slashMenuIndex = 0;
   if (slashMenuIndex < 0) slashMenuIndex = visibleItems.length - 1;
   
-  items.forEach(i => i.classList.remove("selected"));
   visibleItems[slashMenuIndex].classList.add("selected");
 }
 
@@ -1322,12 +1318,13 @@ function applySlashCommand(item) {
   if (!selection.rangeCount) return;
   const range = selection.getRangeAt(0);
   
-  // '/' 문자 제거 및 노드 정리
+  // [UPDATED] '/' 및 검색어 삭제 로직 강화
   const node = range.startContainer;
   if (node.nodeType === 3) { // Text Node
       const text = node.textContent;
       const slashIdx = text.lastIndexOf("/");
       if (slashIdx >= 0) {
+          // 슬래시부터 끝까지 삭제
           node.textContent = text.slice(0, slashIdx);
           range.setStart(node, slashIdx);
           range.setEnd(node, slashIdx);
@@ -1336,25 +1333,18 @@ function applySlashCommand(item) {
 
   // 기능 적용
   if (type === "heading") {
-      // 1. 글제목 (H2 태그에 클래스 적용)
-      // execCommand를 쓰지 않고 HTML 삽입으로 처리하여 커스텀 스타일 적용
       const h2 = document.createElement("div");
       h2.className = "notion-heading";
-      h2.textContent = "제목 입력"; // 플레이스홀더 느낌
+      h2.textContent = "제목 입력"; 
       
-      const br = document.createElement("br"); // 다음 줄 입력용
-      
-      // 현재 블록(p나 div)을 교체하거나 삽입
       range.insertNode(h2);
       
-      // 커서를 제목 내부로 이동
       const newRange = document.createRange();
       newRange.selectNodeContents(h2);
       selection.removeAllRanges();
       selection.addRange(newRange);
 
   } else if (type === "checkbox") {
-      // 2. 체크박스
       const wrapper = document.createElement("div");
       wrapper.className = "notion-checkbox-wrapper";
       
@@ -1362,41 +1352,40 @@ function applySlashCommand(item) {
       checkbox.type = "checkbox";
       
       const textSpan = document.createElement("span");
-      textSpan.textContent = "\u00A0"; // 공백
+      textSpan.textContent = "\u00A0"; // 공백 (커서 위치 잡기용)
       
       wrapper.appendChild(checkbox);
       wrapper.appendChild(textSpan);
       
       range.insertNode(wrapper);
       
-      // 커서를 체크박스 옆 텍스트로 이동
-      range.setStart(textSpan, 1);
-      range.setEnd(textSpan, 1);
+      // 커서를 텍스트 span 안으로 이동
+      const newRange = document.createRange();
+      newRange.setStart(textSpan, 0);
+      newRange.collapse(true);
       selection.removeAllRanges();
-      selection.addRange(range);
+      selection.addRange(newRange);
 
   } else if (type === "callout") {
-      // 3. 메모 (Callout)
       const callout = document.createElement("div");
       callout.className = "notion-callout";
-      callout.textContent = "메모를 작성하세요";
       
       range.insertNode(callout);
       
-      // 커서를 메모 내부로
       const newRange = document.createRange();
-      newRange.selectNodeContents(callout);
+      newRange.setStart(callout, 0);
+      newRange.collapse(true);
       selection.removeAllRanges();
       selection.addRange(newRange);
   }
 }
 
-// 1. 에디터 입력 감지 (슬래시 메뉴 호출 및 엔터 처리)
+// 1. 에디터 키보드 이벤트 핸들러 (슬래시 메뉴 및 엔터 처리)
 editor.addEventListener("keydown", (e) => {
   const selection = window.getSelection();
   if (!selection.rangeCount) return;
   
-  // 슬래시 메뉴가 열려있을 때
+  // A. 슬래시 메뉴가 열려있을 때의 동작
   if (!slashMenu.classList.contains("hidden")) {
     const items = slashMenu.querySelectorAll(".menu-item");
     const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
@@ -1404,18 +1393,20 @@ editor.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       slashMenuIndex++;
+      if(slashMenuIndex >= visibleItems.length) slashMenuIndex = 0;
       updateSlashMenuSelection();
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
       slashMenuIndex--;
+      if(slashMenuIndex < 0) slashMenuIndex = visibleItems.length - 1;
       updateSlashMenuSelection();
       return;
     }
     if (e.key === "Enter") {
-      e.preventDefault();
-      if (visibleItems.length > 0) {
+      e.preventDefault(); // [UPDATED] 엔터 시 메뉴 실행 우선
+      if (visibleItems.length > 0 && slashMenuIndex >= 0 && slashMenuIndex < visibleItems.length) {
         applySlashCommand(visibleItems[slashMenuIndex]);
       }
       return;
@@ -1427,28 +1418,74 @@ editor.addEventListener("keydown", (e) => {
     }
   }
 
-  // 글제목(Heading)에서의 엔터 처리
-  // 엔터 -> 스타일 해제 (일반 텍스트), Shift+Enter -> 스타일 유지
-  const anchorNode = selection.anchorNode;
-  const currentBlock = anchorNode.nodeType === 3 ? anchorNode.parentNode : anchorNode;
+  // B. 일반 엔터 키 처리 (체크박스 및 제목 로직 수정)
+  if (e.key === "Enter" && !e.shiftKey) {
+      const anchorNode = selection.anchorNode;
+      // 텍스트 노드인 경우 부모 요소(예: span, div)를 찾음
+      const currentElement = anchorNode.nodeType === 3 ? anchorNode.parentNode : anchorNode;
 
-  if (currentBlock.classList && currentBlock.classList.contains("notion-heading")) {
-      if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          // 제목 아래에 일반 p 태그 삽입 후 커서 이동
-          const p = document.createElement("div"); // div가 줄바꿈 처리에 더 안전
-          p.innerHTML = "<br>";
-          if (currentBlock.nextSibling) {
-              currentBlock.parentNode.insertBefore(p, currentBlock.nextSibling);
+      // [UPDATED] 체크박스 연속 생성 및 해제 로직 (완전 재작성)
+      const checkboxWrapper = currentElement.closest(".notion-checkbox-wrapper");
+      
+      if (checkboxWrapper) {
+          e.preventDefault(); // 기본 줄바꿈 방지 (중복 생성 원인 차단)
+          
+          const textSpan = checkboxWrapper.querySelector("span");
+          const textContent = textSpan ? textSpan.innerText.trim() : ""; // textContent 대신 innerText 사용 (보이지 않는 문자 제외)
+          
+          if (textContent === "") {
+              // 내용이 없으면 -> 체크박스 해제 (일반 텍스트로 변경)
+              const p = document.createElement("div");
+              p.innerHTML = "<br>";
+              checkboxWrapper.replaceWith(p);
+              
+              const range = document.createRange();
+              range.setStart(p, 0);
+              range.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(range);
           } else {
-              currentBlock.parentNode.appendChild(p);
+              // 내용이 있으면 -> 바로 아래에 새 체크박스 생성
+              const newWrapper = document.createElement("div");
+              newWrapper.className = "notion-checkbox-wrapper";
+              
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              
+              const newSpan = document.createElement("span");
+              newSpan.textContent = "\u00A0"; // 공백 문자 삽입 (커서 위치 확보)
+              
+              newWrapper.appendChild(checkbox);
+              newWrapper.appendChild(newSpan);
+              
+              // 현재 체크박스 바로 뒤에 삽입
+              checkboxWrapper.after(newWrapper);
+              
+              // 커서 이동
+              const range = document.createRange();
+              range.setStart(newSpan, 0); // 공백 앞
+              range.collapse(true);
+              selection.removeAllRanges();
+              selection.addRange(range);
           }
+          return;
+      }
+
+      // 글제목(Heading)에서의 엔터 처리
+      const headingBlock = currentElement.closest(".notion-heading");
+      if (headingBlock) {
+          e.preventDefault();
+          const p = document.createElement("div"); 
+          p.innerHTML = "<br>";
+          
+          headingBlock.after(p);
           
           const range = document.createRange();
           range.setStart(p, 0);
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
+          return;
       }
   }
 });
@@ -1464,12 +1501,12 @@ editor.addEventListener("keyup", (e) => {
   const text = node.textContent;
   
   // 슬래시 감지
-  // '/'가 입력되었고, 뒤에 공백이 없어야 함
   const slashIdx = text.lastIndexOf("/");
   if (slashIdx >= 0) {
-      // 슬래시 뒤의 텍스트가 10자 이내일 때만 메뉴 호출
-      if (text.length - slashIdx < 10) {
-        showSlashMenu(text.slice(slashIdx + 1));
+      const query = text.slice(slashIdx + 1);
+      // 검색어 길이 제한 및 공백 포함 시 메뉴 닫기
+      if (query.length < 10 && !query.includes(" ")) {
+        showSlashMenu(query);
       } else {
         hideSlashMenu();
       }
@@ -1478,16 +1515,16 @@ editor.addEventListener("keyup", (e) => {
   }
 });
 
-// 메뉴 클릭 처리 (mousedown 사용: click은 focus 잃음 문제 발생 가능)
+// 메뉴 클릭 처리
 slashMenu.addEventListener('mousedown', (e) => {
-    e.preventDefault(); // 에디터 포커스 유지
+    e.preventDefault(); 
     const item = e.target.closest('.menu-item');
     if (item) {
         applySlashCommand(item);
     }
 });
 
-// 자동 저장 (디바운스)
+// 자동 저장
 editor.addEventListener("input", (e) => {
     if (!currentUser) return;
     if (saveTimeout) clearTimeout(saveTimeout);
