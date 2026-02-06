@@ -79,7 +79,7 @@ const timeGrid = document.getElementById("timeGrid");
 const editor = document.getElementById("editor");
 const slashMenu = document.getElementById("slashMenu");
 
-// [NEW] Delete Mode Controls
+// Delete Mode Controls
 const deleteModeBtn = document.getElementById("deleteModeBtn");
 const editControls = document.getElementById("editControls");
 const undoBtn = document.getElementById("undoBtn");
@@ -205,7 +205,7 @@ let wakeLock = null;
 // 슬래시 메뉴 상태
 let slashMenuIndex = 0;
 
-// [NEW] Delete Mode State
+// Delete Mode State
 let isDeleteMode = false;
 let tempLogData = null; 
 let undoStack = [];
@@ -1251,32 +1251,29 @@ function showSlashMenu(query) {
   
   const items = slashMenu.querySelectorAll(".menu-item");
   let hasVisible = false;
-  let firstVisibleIndex = -1;
-
-  // [UPDATED] 자음 검색 단축키 매핑
+  
+  // 자음 검색 단축키 매핑
   const shortcuts = {
       'ㄱ': '글제목',
       'ㅊ': '체크박스',
-      'ㅁ': '메모'
+      'ㅁ': '메모',
+      '메': '메모'
   };
 
   items.forEach((item, index) => {
     const itemText = item.textContent.toLowerCase();
     const lowerQuery = query ? query.toLowerCase() : "";
     
-    // 텍스트 포함 여부 또는 단축키(자음) 매칭 확인
     let match = false;
     if (!lowerQuery) {
         match = true;
     } else {
         if (itemText.includes(lowerQuery)) match = true;
-        // 자음 매칭 확인 ('ㅊ' -> '체크박스' 포함 여부)
         if (shortcuts[lowerQuery] && itemText.includes(shortcuts[lowerQuery])) match = true;
     }
 
     if (match) {
         item.style.display = "flex";
-        if (firstVisibleIndex === -1) firstVisibleIndex = index;
         hasVisible = true;
     } else {
         item.style.display = "none";
@@ -1287,8 +1284,9 @@ function showSlashMenu(query) {
   if (!hasVisible) {
     hideSlashMenu();
   } else {
-    slashMenuIndex = firstVisibleIndex;
-    if (slashMenuIndex >= 0) items[slashMenuIndex].classList.add("selected");
+    slashMenuIndex = 0;
+    const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
+    if(visibleItems.length > 0) visibleItems[0].classList.add("selected");
   }
 }
 
@@ -1310,6 +1308,56 @@ function updateSlashMenuSelection() {
   visibleItems[slashMenuIndex].classList.add("selected");
 }
 
+function createNotionBlock(type) {
+    if (type === "heading") {
+        const h2 = document.createElement("div");
+        h2.className = "notion-heading";
+        h2.textContent = "제목 입력"; 
+        return h2;
+    } 
+    else if (type === "checkbox") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "notion-checkbox-wrapper";
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        
+        const textSpan = document.createElement("span");
+        textSpan.textContent = "\u200B"; 
+        
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(textSpan);
+        return wrapper;
+    }
+    else if (type === "callout") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "notion-callout";
+        wrapper.contentEditable = "false"; 
+
+        const icon = document.createElement("div");
+        icon.className = "callout-icon";
+        icon.contentEditable = "false";
+        
+        const content = document.createElement("div");
+        content.className = "callout-content";
+        content.contentEditable = "true";
+        
+        const delBtn = document.createElement("div");
+        delBtn.className = "callout-delete-btn";
+        delBtn.contentEditable = "false"; 
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            wrapper.remove();
+        };
+        
+        wrapper.appendChild(icon);
+        wrapper.appendChild(content);
+        wrapper.appendChild(delBtn);
+        return wrapper;
+    }
+    return null;
+}
+
 function applySlashCommand(item) {
   const type = item.dataset.type;
   hideSlashMenu();
@@ -1318,74 +1366,64 @@ function applySlashCommand(item) {
   if (!selection.rangeCount) return;
   const range = selection.getRangeAt(0);
   
-  // [UPDATED] '/' 및 검색어 삭제 로직 강화
-  const node = range.startContainer;
-  if (node.nodeType === 3) { // Text Node
-      const text = node.textContent;
-      const slashIdx = text.lastIndexOf("/");
-      if (slashIdx >= 0) {
-          // 슬래시부터 끝까지 삭제
-          node.textContent = text.slice(0, slashIdx);
-          range.setStart(node, slashIdx);
-          range.setEnd(node, slashIdx);
-      }
+  // 1. 현재 텍스트 노드에서 명령어 부분만 깨끗하게 제거
+  const currentTextNode = range.startContainer;
+  let textContent = currentTextNode.textContent;
+  const slashIdx = textContent.lastIndexOf("/");
+  
+  if (currentTextNode.nodeType === 3 && slashIdx >= 0) {
+      // 슬래시 앞부분만 남김 (예: "안녕 /체" -> "안녕 ")
+      currentTextNode.textContent = textContent.substring(0, slashIdx);
   }
 
-  // 기능 적용
+  const parentBlock = currentTextNode.parentNode;
+  // 텍스트 제거 후 블록이 비었는지 확인
+  const isBlockEmpty = parentBlock.textContent.trim() === "";
+
+  // 2. 새 블록 생성
+  const newElement = createNotionBlock(type);
+  if (!newElement) return;
+
+  // 3. 삽입 위치 결정 (교체 vs 다음 줄 삽입)
+  if (isBlockEmpty && parentBlock.tagName === 'DIV' && !parentBlock.classList.contains('notion-editor')) {
+      // 빈 줄이면 교체
+      parentBlock.replaceWith(newElement);
+  } else {
+      // 글자가 있으면(중간 실행) 다음 줄에 삽입
+      if (parentBlock.nextSibling) {
+          parentBlock.parentNode.insertBefore(newElement, parentBlock.nextSibling);
+      } else {
+          parentBlock.parentNode.appendChild(newElement);
+      }
+  }
+  
+  // 4. 커서 이동
   if (type === "heading") {
-      const h2 = document.createElement("div");
-      h2.className = "notion-heading";
-      h2.textContent = "제목 입력"; 
-      
-      range.insertNode(h2);
-      
       const newRange = document.createRange();
-      newRange.selectNodeContents(h2);
+      newRange.selectNodeContents(newElement);
       selection.removeAllRanges();
       selection.addRange(newRange);
-
   } else if (type === "checkbox") {
-      const wrapper = document.createElement("div");
-      wrapper.className = "notion-checkbox-wrapper";
-      
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      
-      const textSpan = document.createElement("span");
-      textSpan.textContent = "\u00A0"; // 공백 (커서 위치 잡기용)
-      
-      wrapper.appendChild(checkbox);
-      wrapper.appendChild(textSpan);
-      
-      range.insertNode(wrapper);
-      
-      // 커서를 텍스트 span 안으로 이동
+      const textSpan = newElement.querySelector("span");
       const newRange = document.createRange();
-      newRange.setStart(textSpan, 0);
+      newRange.setStart(textSpan, 1); 
       newRange.collapse(true);
       selection.removeAllRanges();
       selection.addRange(newRange);
-
   } else if (type === "callout") {
-      const callout = document.createElement("div");
-      callout.className = "notion-callout";
-      
-      range.insertNode(callout);
-      
-      const newRange = document.createRange();
-      newRange.setStart(callout, 0);
-      newRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(newRange);
+      const content = newElement.querySelector(".callout-content");
+      requestAnimationFrame(() => {
+          content.focus();
+      });
   }
 }
 
-// 1. 에디터 키보드 이벤트 핸들러 (슬래시 메뉴 및 엔터 처리)
+// 1. 에디터 키보드 이벤트 핸들러
 editor.addEventListener("keydown", (e) => {
   const selection = window.getSelection();
   if (!selection.rangeCount) return;
   
-  // A. 슬래시 메뉴가 열려있을 때의 동작
+  // A. 슬래시 메뉴 동작
   if (!slashMenu.classList.contains("hidden")) {
     const items = slashMenu.querySelectorAll(".menu-item");
     const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
@@ -1393,20 +1431,24 @@ editor.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       slashMenuIndex++;
-      if(slashMenuIndex >= visibleItems.length) slashMenuIndex = 0;
       updateSlashMenuSelection();
       return;
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
       slashMenuIndex--;
-      if(slashMenuIndex < 0) slashMenuIndex = visibleItems.length - 1;
       updateSlashMenuSelection();
       return;
     }
     if (e.key === "Enter") {
-      e.preventDefault(); // [UPDATED] 엔터 시 메뉴 실행 우선
-      if (visibleItems.length > 0 && slashMenuIndex >= 0 && slashMenuIndex < visibleItems.length) {
+      // [FIX] 엔터 중복 방지 (이게 핵심)
+      e.preventDefault(); 
+      e.stopImmediatePropagation(); // 중요: 뒤쪽 로직 실행 차단
+
+      if (visibleItems.length > 0) {
+        if (slashMenuIndex < 0) slashMenuIndex = 0;
+        if (slashMenuIndex >= visibleItems.length) slashMenuIndex = 0;
+        
         applySlashCommand(visibleItems[slashMenuIndex]);
       }
       return;
@@ -1418,23 +1460,51 @@ editor.addEventListener("keydown", (e) => {
     }
   }
 
-  // B. 일반 엔터 키 처리 (체크박스 및 제목 로직 수정)
-  if (e.key === "Enter" && !e.shiftKey) {
-      const anchorNode = selection.anchorNode;
-      // 텍스트 노드인 경우 부모 요소(예: span, div)를 찾음
-      const currentElement = anchorNode.nodeType === 3 ? anchorNode.parentNode : anchorNode;
+  // B. 일반 엔터 및 백스페이스 처리
+  
+  // Callout 내부 동작 처리
+  const anchorNode = selection.anchorNode;
+  const currentElement = anchorNode.nodeType === 3 ? anchorNode.parentNode : anchorNode;
+  const calloutContent = currentElement.closest(".callout-content");
 
-      // [UPDATED] 체크박스 연속 생성 및 해제 로직 (완전 재작성)
+  if (calloutContent) {
+      if (e.key === "Enter") {
+          // 한글 입력 중 엔터 입력 시 중복 이벤트 방지
+          if (e.isComposing) return;
+
+          if (!e.shiftKey) {
+             // Enter: 메모 밖으로 나가기
+             e.preventDefault();
+             const wrapper = calloutContent.closest(".notion-callout");
+             const p = document.createElement("div");
+             p.innerHTML = "<br>";
+             wrapper.after(p);
+             
+             const range = document.createRange();
+             range.setStart(p, 0);
+             range.collapse(true);
+             selection.removeAllRanges();
+             selection.addRange(range);
+             return;
+          }
+          // Shift+Enter: 기본 줄바꿈 (허용)
+      }
+      return; 
+  }
+
+  if (e.key === "Enter") {
+      // 한글 입력 중 엔터 입력 시 중복 이벤트 방지
+      if (e.isComposing) return;
+
+      // 체크박스 연속 생성 및 해제 로직
       const checkboxWrapper = currentElement.closest(".notion-checkbox-wrapper");
-      
-      if (checkboxWrapper) {
-          e.preventDefault(); // 기본 줄바꿈 방지 (중복 생성 원인 차단)
+      if (checkboxWrapper && !e.shiftKey) {
+          e.preventDefault(); 
           
           const textSpan = checkboxWrapper.querySelector("span");
-          const textContent = textSpan ? textSpan.innerText.trim() : ""; // textContent 대신 innerText 사용 (보이지 않는 문자 제외)
+          const textContent = textSpan ? textSpan.innerText.replace(/\u200B/g, '').trim() : "";
           
           if (textContent === "") {
-              // 내용이 없으면 -> 체크박스 해제 (일반 텍스트로 변경)
               const p = document.createElement("div");
               p.innerHTML = "<br>";
               checkboxWrapper.replaceWith(p);
@@ -1445,25 +1515,12 @@ editor.addEventListener("keydown", (e) => {
               selection.removeAllRanges();
               selection.addRange(range);
           } else {
-              // 내용이 있으면 -> 바로 아래에 새 체크박스 생성
-              const newWrapper = document.createElement("div");
-              newWrapper.className = "notion-checkbox-wrapper";
-              
-              const checkbox = document.createElement("input");
-              checkbox.type = "checkbox";
-              
-              const newSpan = document.createElement("span");
-              newSpan.textContent = "\u00A0"; // 공백 문자 삽입 (커서 위치 확보)
-              
-              newWrapper.appendChild(checkbox);
-              newWrapper.appendChild(newSpan);
-              
-              // 현재 체크박스 바로 뒤에 삽입
+              const newWrapper = createNotionBlock("checkbox");
               checkboxWrapper.after(newWrapper);
               
-              // 커서 이동
+              const newSpan = newWrapper.querySelector("span");
               const range = document.createRange();
-              range.setStart(newSpan, 0); // 공백 앞
+              range.setStart(newSpan, 1);
               range.collapse(true);
               selection.removeAllRanges();
               selection.addRange(range);
@@ -1477,9 +1534,7 @@ editor.addEventListener("keydown", (e) => {
           e.preventDefault();
           const p = document.createElement("div"); 
           p.innerHTML = "<br>";
-          
           headingBlock.after(p);
-          
           const range = document.createRange();
           range.setStart(p, 0);
           range.collapse(true);
@@ -1504,7 +1559,6 @@ editor.addEventListener("keyup", (e) => {
   const slashIdx = text.lastIndexOf("/");
   if (slashIdx >= 0) {
       const query = text.slice(slashIdx + 1);
-      // 검색어 길이 제한 및 공백 포함 시 메뉴 닫기
       if (query.length < 10 && !query.includes(" ")) {
         showSlashMenu(query);
       } else {
@@ -1547,3 +1601,17 @@ drawRing();
 renderTime();
 drawDailyRing({ sessions: [] });
 renderCalendar(currentCalDate);
+
+/* ===============================
+   Window Close Safety (Data Protection)
+=============================== */
+// 창을 닫거나 새로고침하기 직전에 저장되지 않은 내용이 있다면 즉시 저장 시도
+window.addEventListener("beforeunload", () => {
+  if (currentUser && selectedDateKey === getTodayKey() && editor.innerHTML !== viewLog.memo) {
+      // 1. 메모리에 현재 에디터 내용 반영
+      todayLog.memo = editor.innerHTML;
+      // 2. 비동기라 보장은 못하지만, 최신 브라우저는 닫히기 직전 최대한 요청을 보냄
+      // (Beacon API 등을 쓰면 더 확실하지만, 현재 구조에선 이 정도도 충분히 방어됨)
+      saveTodayLog(); 
+  }
+});

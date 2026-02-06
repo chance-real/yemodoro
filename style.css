@@ -253,7 +253,7 @@ body {
   position: relative;
 }
 
-/* --- Timer View 배경 추가 (늑대 이미지) --- */
+/* --- Timer View 배경 추가 --- */
 #timerView {
   align-items: center;
   justify-content: space-evenly;
@@ -483,7 +483,9 @@ button:hover {
   font-family: "Toss Face Font", "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* Callout (Memo) Styles */
 .notion-callout {
+  position: relative; /* 삭제 버튼 위치 기준 */
   display: flex;
   align-items: flex-start;
   background: #252525;
@@ -493,17 +495,75 @@ button:hover {
   border: 1px solid rgba(255,255,255,0.05);
   color: #e0e0e0;
   font-size: 14px;
-  min-height: 52px; 
+  min-height: 52px;
+  cursor: text;
 }
-.notion-callout::before {
-  content: "💡";
+
+/* 아이콘 영역 */
+.callout-icon {
   margin-right: 12px;
   font-size: 18px;
+  user-select: none; 
+  flex-shrink: 0;
 }
-.notion-callout:empty::after {
+
+/* 텍스트 내용 영역 (에디터) */
+.callout-content {
+  flex: 1;
+  outline: none; 
+  min-height: 1.5em; 
+  white-space: pre-wrap;
+  word-break: break-word;
+  caret-color: #fff; 
+}
+
+/* 플레이스홀더 */
+.callout-content:empty::after {
   content: "메모를 작성하세요";
   color: #666;
   pointer-events: none;
+}
+
+/* Callout Delete Button Style */
+.callout-delete-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  background: #3a3a3c;
+  border-radius: 50%;
+  color: #ff453a; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 10;
+  user-select: none;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.callout-delete-btn::before {
+  content: "✕";
+}
+
+/* 마우스 호버 시 삭제 버튼 등장 */
+.notion-callout:hover .callout-delete-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.callout-delete-btn:hover {
+  background: #ff453a;
+  color: #fff;
+  border-color: #ff453a;
+  transform: scale(1.15);
 }
 
 .notion-checkbox-wrapper {
@@ -993,7 +1053,7 @@ body.focus-mode #recordView.hidden {
   display: none !important;
 }
 
-/* [BUG FIX] 집중 모드 시 기록 페이지 내부의 '큰화면으로 보기' 버튼 숨김 */
+/* 집중 모드 시 기록 페이지 내부의 '큰화면으로 보기' 버튼 숨김 */
 body.focus-mode #recordFocusBtn {
   display: none !important;
 }
