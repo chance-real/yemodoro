@@ -23,7 +23,7 @@ function playAlarmSound() {
 }
 
 document.addEventListener('click', (e) => {
-  const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn, .menu-item, .record-btn-float, .focus-mode-btn');
+  const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn, .menu-item, .record-btn-float, .focus-mode-btn, .mode-toggle-btn');
   if (target) {
     playClickSound();
   }
@@ -61,6 +61,15 @@ const nextMonthBtn = document.getElementById("nextMonthBtn");
 const mainFocusBtn = document.getElementById("mainFocusBtn");
 const recordFocusBtn = document.getElementById("recordFocusBtn");
 const exitFocusBtn = document.getElementById("exitFocusBtn");
+const focusNoteDisplay = document.getElementById("focusNoteDisplay"); // 노트 표시용
+
+// Clock Controls
+const toggleViewBtn = document.getElementById("toggleViewBtn");
+const timerModeContainer = document.getElementById("timerModeContainer");
+const clockModeContainer = document.getElementById("clockModeContainer");
+const realTimeClock = document.getElementById("realTimeClock");
+const clockDate = document.getElementById("clockDate");
+const clockFocusBtn = document.getElementById("clockFocusBtn");
 
 const mainActionBtn = document.getElementById("mainActionBtn"); 
 const resetBtn = document.getElementById("resetBtn");
@@ -79,14 +88,18 @@ const timeGrid = document.getElementById("timeGrid");
 const editor = document.getElementById("editor");
 const slashMenu = document.getElementById("slashMenu");
 
-// Delete Mode Controls
+// Delete & Add Mode Controls
 const deleteModeBtn = document.getElementById("deleteModeBtn");
+const addModeBtn = document.getElementById("addModeBtn");
 const editControls = document.getElementById("editControls");
 const undoBtn = document.getElementById("undoBtn");
 const redoBtn = document.getElementById("redoBtn");
 const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
 const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
 const gridTitleText = document.getElementById("gridTitleText"); 
+
+// [NEW] Wrapper selection for toggling buttons
+const deleteControlsWrapper = document.querySelector(".delete-controls-wrapper");
 
 /* ===============================
    Helper Functions
@@ -172,7 +185,7 @@ function loadMemoData(dateKey) {
     editor.innerHTML = "";
   }
   const [y, m, d] = dateKey.split("-");
-  recordDateTitle.textContent = `${y}. ${m}. ${d} 기록`;
+  recordDateTitle.textContent = `${y}. ${m}. ${d} 노트`;
 }
 
 /* ===============================
@@ -192,6 +205,10 @@ let remainingSeconds = totalSeconds;
 let timerInterval = null; 
 let activeSettingsPanel = null;
 
+// Clock State
+let isClockMode = false;
+let clockInterval = null;
+
 // User & Data State
 let currentUser = null;
 let todayLog = { sessions: [], totals: {}, memo: "" }; 
@@ -205,8 +222,10 @@ let wakeLock = null;
 // 슬래시 메뉴 상태
 let slashMenuIndex = 0;
 
-// Delete Mode State
+// Delete & Add Mode Controls
 let isDeleteMode = false;
+let isAddMode = false;
+let selectedAddCategory = null; // 추가 모드에서 선택된 카테고리
 let tempLogData = null; 
 let undoStack = [];
 let redoStack = [];
@@ -238,11 +257,70 @@ function releaseWakeLock() {
 
 document.addEventListener('visibilitychange', async () => {
   if (wakeLock !== null && document.visibilityState === 'visible') {
-    if (timerInterval) { 
+    if (timerInterval || isClockMode) { 
       await requestWakeLock();
     }
   }
 });
+
+/* ===============================
+   Clock Logic (Real Time)
+=============================== */
+function updateClock() {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  
+  realTimeClock.textContent = `${hours}:${minutes}:${seconds}`;
+  
+  const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+  clockDate.textContent = now.toLocaleDateString('ko-KR', options);
+}
+
+function startClock() {
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
+  requestWakeLock().catch(e => console.log('WakeLock error in clock', e));
+}
+
+function stopClock() {
+  if (clockInterval) {
+    clearInterval(clockInterval);
+    clockInterval = null;
+  }
+  releaseWakeLock();
+}
+
+toggleViewBtn.onclick = () => {
+  // Flip Animation Start
+  timerView.classList.add("flipping");
+
+  setTimeout(() => {
+    isClockMode = !isClockMode;
+    
+    if (isClockMode) {
+      // Switch to Clock
+      timerModeContainer.classList.add("hidden");
+      clockModeContainer.classList.remove("hidden");
+      toggleViewBtn.textContent = "⏱ 타이머";
+      timerView.classList.add("clock-mode-bg");
+      startClock();
+    } else {
+      // Switch to Timer
+      clockModeContainer.classList.add("hidden");
+      timerModeContainer.classList.remove("hidden");
+      toggleViewBtn.textContent = "🕒 현재 시각";
+      timerView.classList.remove("clock-mode-bg");
+      stopClock();
+    }
+  }, 300); // 300ms matches half of transition duration (0.6s)
+
+  setTimeout(() => {
+    timerView.classList.remove("flipping");
+  }, 600);
+};
+
 
 /* ===============================
    Tooltip Logic
@@ -570,11 +648,30 @@ setTimeBtn.onclick = () => {
 
 function drawRing() {
   const dpr = window.devicePixelRatio || 1;
-  const size = 260;
+  let size = 260; 
+
+  // [수정] 집중 모드(큰 화면)일 때 해상도를 동적으로 높여 선명하게 그리기
+  const isFocusMode = document.body.classList.contains("focus-mode");
+  if (isFocusMode) {
+      // 뷰포트의 작은 쪽 기준으로 크기 계산 (약 60% 비율, CSS vmin과 유사하게 매칭)
+      const vmin = Math.min(window.innerWidth, window.innerHeight);
+      size = vmin * 0.6; // 충분히 큰 해상도 확보
+  }
+
   canvas.width = size * dpr;
   canvas.height = size * dpr;
-  canvas.style.width = size + "px";
-  canvas.style.height = size + "px";
+
+  // CSS 스타일 사이즈는 모드에 따라 다르게 적용
+  // (스크립트에서 제어해도 되지만, CSS에서 !important로 제어 중인 값을 존중하기 위해 스타일 속성은 보조적 역할)
+  if (!isFocusMode) {
+    canvas.style.width = "260px";
+    canvas.style.height = "260px";
+  } else {
+    // 집중 모드일 때는 CSS 클래스가 width/height를 담당하므로 여기서는 픽셀 버퍼만 조정
+    canvas.style.width = "";
+    canvas.style.height = "";
+  }
+  
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
 
@@ -582,8 +679,8 @@ function drawRing() {
   const progress = remainingSeconds / maxFullSeconds; 
   
   const center = size / 2;
-  const radius = 90;
-  const lineWidth = 38; 
+  const radius = size * 0.35; // 크기에 비례한 반지름 (기존 90/260 = ~0.35)
+  const lineWidth = size * 0.12; // 크기에 비례한 두께 (기존 38/260 = ~0.15, 요청대로 약간 얇게 0.12로 조정)
   const color = activeCategory ? activeCategory.color : "#FF2D55";
 
   ctx.beginPath();
@@ -604,7 +701,7 @@ function drawRing() {
     ctx.lineWidth = lineWidth;
     ctx.lineCap = "round"; 
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 25; 
+    ctx.shadowBlur = size * 0.1; // 그림자도 비율에 맞게
     ctx.shadowColor = color;
     ctx.stroke();
   }
@@ -625,9 +722,8 @@ openRecordBtn.onclick = () => {
 };
 
 closeRecordBtn.onclick = () => {
-  if (isDeleteMode) {
-      exitDeleteMode(false); 
-  }
+  if (isDeleteMode) exitDeleteMode(false);
+  if (isAddMode) exitAddMode(false);
   recordView.classList.add("hidden");
   timerView.classList.remove("hidden");
   hideSlashMenu();
@@ -636,14 +732,38 @@ closeRecordBtn.onclick = () => {
 function enterFocusMode() {
   document.body.classList.add("focus-mode");
   exitFocusBtn.classList.remove("hidden");
+  
+  // 집중 모드 노트 동기화
+  if (editor && focusNoteDisplay) {
+    focusNoteDisplay.innerHTML = editor.innerHTML;
+    focusNoteDisplay.classList.remove("hidden");
+  }
+
+  // [추가] 링 고화질 다시 그리기
+  requestAnimationFrame(drawRing);
 }
 
 function exitFocusMode() {
   document.body.classList.remove("focus-mode");
   exitFocusBtn.classList.add("hidden");
+  
+  if (focusNoteDisplay) {
+    focusNoteDisplay.classList.add("hidden");
+  }
+
+  // [추가] 링 원래 크기로 다시 그리기
+  requestAnimationFrame(drawRing);
 }
 
+// [추가] 윈도우 리사이즈 시 집중모드라면 링 다시 그려서 해상도/크기 유지
+window.addEventListener('resize', () => {
+    if (document.body.classList.contains('focus-mode')) {
+        drawRing();
+    }
+});
+
 mainFocusBtn.onclick = enterFocusMode;
+clockFocusBtn.onclick = enterFocusMode;
 recordFocusBtn.onclick = enterFocusMode;
 exitFocusBtn.onclick = exitFocusMode;
 
@@ -652,6 +772,130 @@ document.addEventListener("keydown", (e) => {
     exitFocusMode();
   }
 });
+
+/* ===============================
+   Add Mode Logic (추가 기능)
+=============================== */
+addModeBtn.onclick = () => {
+    if (!isAddMode) {
+        // 추가 모드 시작 전에 카테고리 선택
+        showCategoryPickerForAdd();
+    } else {
+        exitAddMode(false);
+    }
+};
+
+function showCategoryPickerForAdd() {
+    if (activeSettingsPanel) {
+        activeSettingsPanel.remove();
+        activeSettingsPanel = null;
+    }
+
+    const panel = document.createElement("div");
+    panel.className = "settings-panel";
+    document.body.appendChild(panel);
+
+    const rect = addModeBtn.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    panel.style.top = `${rect.bottom + scrollTop + 10}px`;
+    panel.style.left = `${rect.left}px`;
+
+    const label = document.createElement("span");
+    label.className = "settings-label";
+    label.textContent = "추가할 카테고리 선택";
+    panel.appendChild(label);
+
+    if (categories.length === 0) {
+        const msg = document.createElement("div");
+        msg.textContent = "카테고리가 없습니다.";
+        msg.style.color = "#aaa";
+        msg.style.fontSize = "13px";
+        panel.appendChild(msg);
+    } else {
+        categories.forEach(cat => {
+            const btn = document.createElement("button");
+            btn.className = "menu-item";
+            btn.textContent = cat.name;
+            btn.style.width = "100%";
+            btn.style.textAlign = "left";
+            btn.style.border = "none";
+            btn.style.marginBottom = "4px";
+            btn.onclick = () => {
+                selectedAddCategory = cat;
+                enterAddMode();
+                panel.remove();
+            };
+            panel.appendChild(btn);
+        });
+    }
+
+    // 바깥 클릭 시 닫기
+    const closeHandler = (e) => {
+        if (!panel.contains(e.target) && e.target !== addModeBtn) {
+            panel.remove();
+            document.removeEventListener("mousedown", closeHandler);
+        }
+    };
+    document.addEventListener("mousedown", closeHandler);
+}
+
+function enterAddMode() {
+    if (isDeleteMode) exitDeleteMode(false); // 삭제 모드 해제
+    
+    isAddMode = true;
+    addModeBtn.classList.add("active");
+    addModeBtn.textContent = `추가: ${selectedAddCategory.name}`;
+    addModeBtn.style.background = selectedAddCategory.color;
+    addModeBtn.style.color = "#fff";
+    
+    editControls.classList.remove("hidden");
+    gridTitleText.classList.add("hidden");
+    
+    // [NEW] 버튼 래퍼에 편집 클래스 추가 (추가/삭제 버튼 숨김용)
+    if(deleteControlsWrapper) deleteControlsWrapper.classList.add("editing");
+
+    tempLogData = sanitizeLogs(JSON.parse(JSON.stringify(viewLog)));
+    undoStack = [JSON.stringify(tempLogData)];
+    redoStack = [];
+    updateUndoRedoButtons();
+
+    timeGrid.classList.add("add-mode");
+    renderTimeGrid(tempLogData);
+}
+
+function exitAddMode(saveChanges) {
+    isAddMode = false;
+    addModeBtn.classList.remove("active");
+    addModeBtn.textContent = "추가";
+    addModeBtn.style.background = "";
+    addModeBtn.style.color = "";
+    
+    editControls.classList.add("hidden");
+    timeGrid.classList.remove("add-mode");
+    gridTitleText.classList.remove("hidden");
+    
+    // [NEW] 버튼 래퍼 편집 클래스 제거
+    if(deleteControlsWrapper) deleteControlsWrapper.classList.remove("editing");
+
+    if (saveChanges && tempLogData) {
+        viewLog = tempLogData;
+        if (selectedDateKey === getTodayKey()) {
+            todayLog = JSON.parse(JSON.stringify(viewLog));
+        }
+        saveLogToDB(selectedDateKey, viewLog);
+        renderTimeGrid(viewLog);
+        drawDailyRing(viewLog);
+        updateTodayCalendarBlock();
+    } else {
+        renderTimeGrid(sanitizeLogs(viewLog));
+    }
+
+    tempLogData = null;
+    undoStack = [];
+    redoStack = [];
+    selectedAddCategory = null;
+}
+
 
 /* ===============================
    Delete Mode Logic
@@ -667,10 +911,15 @@ deleteModeBtn.onclick = () => {
 };
 
 function enterDeleteMode() {
+  if (isAddMode) exitAddMode(false); // 추가 모드 해제
+
   isDeleteMode = true;
   deleteModeBtn.classList.add("active");
   editControls.classList.remove("hidden");
   gridTitleText.classList.add("hidden");
+  
+  // [NEW] 버튼 래퍼에 편집 클래스 추가 (추가/삭제 버튼 숨김용)
+  if(deleteControlsWrapper) deleteControlsWrapper.classList.add("editing");
   
   tempLogData = sanitizeLogs(JSON.parse(JSON.stringify(viewLog)));
   undoStack = [JSON.stringify(tempLogData)];
@@ -688,6 +937,9 @@ function exitDeleteMode(saveChanges) {
   timeGrid.classList.remove("delete-mode");
   
   gridTitleText.classList.remove("hidden");
+  
+  // [NEW] 버튼 래퍼 편집 클래스 제거
+  if(deleteControlsWrapper) deleteControlsWrapper.classList.remove("editing");
   
   if (saveChanges && tempLogData) {
     viewLog = tempLogData;
@@ -711,19 +963,21 @@ function exitDeleteMode(saveChanges) {
   redoStack = [];
 }
 
-// 블록 클릭 시 삭제 처리
+// 블록 클릭 핸들러 (통합: 삭제/추가)
 function handleBlockClick(startSec, endSec) {
-  if (!isDeleteMode || !tempLogData) return;
+  if ((!isDeleteMode && !isAddMode) || !tempLogData) return;
   
   const newSessions = [];
   let changed = false;
 
+  // 기존 세션들을 순회하며 범위에 겹치는 것 처리
   tempLogData.sessions.forEach(session => {
     const sDate = new Date(session.start);
     const eDate = new Date(session.end);
     const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
     const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
 
+    // 겹치지 않으면 그대로 유지
     if (eSec <= startSec || sSec >= endSec) {
       newSessions.push(session);
       return;
@@ -731,13 +985,15 @@ function handleBlockClick(startSec, endSec) {
 
     changed = true;
     
-    // 잘라내기
+    // 겹치면 잘라내기 (삭제 모드 및 추가 모드 모두 기존 것은 잘라내야 함)
+    // 앞부분 남기기
     if (sSec < startSec) {
       newSessions.push({
         ...session,
         end: new Date(sDate.setHours(0,0,0,0) + startSec * 1000).getTime()
       });
     }
+    // 뒷부분 남기기
     if (eSec > endSec) {
       newSessions.push({
         ...session,
@@ -746,12 +1002,37 @@ function handleBlockClick(startSec, endSec) {
     }
   });
 
+  // 추가 모드라면 새로운 세션을 해당 슬롯에 추가
+  if (isAddMode && selectedAddCategory) {
+      const dayBase = new Date(tempLogData.sessions[0]?.start || new Date().getTime()); // 기준 날짜
+      if(selectedDateKey) {
+          const [y,m,d] = selectedDateKey.split("-");
+          dayBase.setFullYear(y, m-1, d);
+      }
+      dayBase.setHours(0,0,0,0);
+      
+      const newStart = dayBase.getTime() + startSec * 1000;
+      const newEnd = dayBase.getTime() + endSec * 1000;
+
+      newSessions.push({
+          catId: selectedAddCategory.id,
+          name: selectedAddCategory.name,
+          color: selectedAddCategory.color,
+          start: newStart,
+          end: newEnd
+      });
+      changed = true;
+  }
+
   if (changed) {
     undoStack.push(JSON.stringify(tempLogData));
     redoStack = []; 
     
+    // 시간순 정렬
+    newSessions.sort((a,b) => a.start - b.start);
+
     tempLogData.sessions = newSessions;
-    tempLogData = sanitizeLogs(tempLogData);
+    tempLogData = sanitizeLogs(tempLogData); // 정제
 
     renderTimeGrid(tempLogData);
     updateUndoRedoButtons();
@@ -778,8 +1059,14 @@ redoBtn.onclick = () => {
   }
 };
 
-cancelDeleteBtn.onclick = () => exitDeleteMode(false);
-confirmDeleteBtn.onclick = () => exitDeleteMode(true);
+cancelDeleteBtn.onclick = () => {
+    if(isDeleteMode) exitDeleteMode(false);
+    if(isAddMode) exitAddMode(false);
+};
+confirmDeleteBtn.onclick = () => {
+    if(isDeleteMode) exitDeleteMode(true);
+    if(isAddMode) exitAddMode(true);
+};
 
 function updateUndoRedoButtons() {
   undoBtn.disabled = undoStack.length === 0;
@@ -839,7 +1126,7 @@ function renderTimeGrid(logData) {
       }
       
       block.onclick = () => {
-          if (isDeleteMode && hasSession) {
+          if (isDeleteMode || isAddMode) {
               handleBlockClick(blockStartSec, blockEndSec);
           }
       };
@@ -889,9 +1176,10 @@ function renderCalendar(baseDate) {
     }
 
     block.onclick = async () => {
-        if (isDeleteMode) {
+        if (isDeleteMode || isAddMode) {
             if(!confirm("편집 중인 내용이 있습니다. 저장하지 않고 이동하시겠습니까?")) return;
             exitDeleteMode(false);
+            exitAddMode(false);
         }
 
         const prev = document.querySelector(".day-block.selected");
@@ -1149,6 +1437,13 @@ onAuthStateChanged(auth, async (user) => {
     userName.textContent = user.displayName;
     userName.classList.remove("hidden");
 
+    // [중요] 로그인 시 기존(비로그인) 데이터 초기화 - 데이터 섞임 방지
+    categories = [];
+    activeCategory = { ...defaultCategory };
+    todayLog = { sessions: [], totals: {}, memo: "" };
+    viewLog = { sessions: [], totals: {}, memo: "" };
+    
+    // 카테고리 불러오기
     try {
       const catRef = doc(db, "users", user.uid, "settings", "categories");
       const catSnap = await getDoc(catRef);
@@ -1167,21 +1462,21 @@ onAuthStateChanged(auth, async (user) => {
     selectedDateKey = getTodayKey();
     todayDateEl.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
     
+    // 로그 데이터 불러오기 (병합 X -> DB 데이터 우선)
     try {
       const docRef = doc(db, "users", user.uid, "logs", selectedDateKey);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const dbData = docSnap.data();
-        const combinedSessions = [...(dbData.sessions || []), ...(todayLog.sessions || [])];
-        const combinedTotals = { ...(dbData.totals || {}) };
-        const localTotals = todayLog.totals || {};
-        for (const [id, count] of Object.entries(localTotals)) {
-          combinedTotals[id] = (combinedTotals[id] || 0) + count;
-        }
-        todayLog = { sessions: combinedSessions, totals: combinedTotals, memo: dbData.memo || "" };
-        
-        saveTodayLog();
+        // DB 데이터로 완전히 덮어쓰기
+        todayLog = { 
+            sessions: dbData.sessions || [], 
+            totals: dbData.totals || {}, 
+            memo: dbData.memo || "" 
+        };
+        saveTodayLog(); // 로컬에 반영된 내용을 다시 저장 (혹은 생략 가능)
       } else {
+        // DB에 데이터가 없으면 새 기록 시작
         saveTodayLog();
       }
     } catch(e) {}
@@ -1193,21 +1488,28 @@ onAuthStateChanged(auth, async (user) => {
     loadMemoData(selectedDateKey); 
 
   } else {
+    // 로그아웃 시 데이터 완전 초기화
     stopTimerLogic();
     currentUser = null;
+    
+    // 중요: 화면에 남은 개인정보 제거
     todayLog = { sessions: [], totals: {}, memo: "" };
     viewLog = { sessions: [], totals: {}, memo: "" };
     categories = []; 
-    activeCategory = { ...defaultCategory };
+    activeCategory = { ...defaultCategory }; // 기본값 복구
     selectedDateKey = getTodayKey();
     
     authBtn.textContent = "Google 로그인";
     userProfile.classList.add("hidden");
     userName.classList.add("hidden");
+    userProfile.src = "";
+    userName.textContent = "";
     
     categoryList.innerHTML = "";
-    editor.innerHTML = "";
+    editor.innerHTML = ""; // 에디터 비우기
+    currentCategory.textContent = activeCategory.name; // 카테고리 이름 초기화
     
+    // 초기화된 상태 렌더링
     renderCategories();
     drawRing();
     drawDailyRing({ sessions: [] }); 
@@ -1583,6 +1885,11 @@ editor.addEventListener("input", (e) => {
     if (!currentUser) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     
+    // 집중 모드일 때 실시간 동기화
+    if(focusNoteDisplay && !focusNoteDisplay.classList.contains("hidden")) {
+        focusNoteDisplay.innerHTML = editor.innerHTML;
+    }
+
     saveTimeout = setTimeout(async () => {
         if (selectedDateKey === getTodayKey()) {
             todayLog.memo = editor.innerHTML;
@@ -1611,7 +1918,6 @@ window.addEventListener("beforeunload", () => {
       // 1. 메모리에 현재 에디터 내용 반영
       todayLog.memo = editor.innerHTML;
       // 2. 비동기라 보장은 못하지만, 최신 브라우저는 닫히기 직전 최대한 요청을 보냄
-      // (Beacon API 등을 쓰면 더 확실하지만, 현재 구조에선 이 정도도 충분히 방어됨)
       saveTodayLog(); 
   }
 });

@@ -38,35 +38,55 @@
   <section class="card center" id="centerCard">
     
     <div id="timerView" class="view-container">
-      <div class="focus-btn-container">
-        <button id="mainFocusBtn" class="focus-mode-btn">큰화면으로 보기</button>
-      </div>
+      
+      <button id="toggleViewBtn" class="mode-toggle-btn">🕒 현재 시각</button>
+      
+      <div id="focusNoteDisplay" class="hidden"></div>
 
-      <div id="timerContainer">
-        <div id="currentCategory">예모도로(기본_25분)</div>
-        <div id="timer">25:00</div>
-        <canvas id="ring" width="260" height="260"></canvas>
-      </div>
-
-      <div class="control-panel">
-        <div class="control-row">
-          <input id="minuteInput" type="number" min="1" max="60" value="25" />
-          <button id="setTimeBtn" class="small-btn">설정</button>
+      <div id="timerModeContainer">
+        <div class="focus-btn-container">
+          <button id="mainFocusBtn" class="focus-mode-btn">큰화면으로 보기</button>
         </div>
-        <div class="control-row">
-          <button id="resetBtn" class="secondary-btn">리셋</button>
-          <button id="mainActionBtn" class="primary-btn">시작</button>
+
+        <div id="timerContainer">
+          <div class="timer-text-group">
+            <div id="currentCategory">예모도로(기본_25분)</div>
+            <div id="timer">25:00</div>
+          </div>
+          <canvas id="ring" width="260" height="260"></canvas>
+        </div>
+
+        <div class="control-panel">
+          <div class="control-row">
+            <input id="minuteInput" type="number" min="1" max="60" value="25" />
+            <button id="setTimeBtn" class="small-btn">설정</button>
+          </div>
+          <div class="control-row">
+            <button id="resetBtn" class="secondary-btn">리셋</button>
+            <button id="mainActionBtn" class="primary-btn">시작</button>
+          </div>
         </div>
       </div>
 
-      <button id="openRecordBtn" class="record-btn-float">📝 하루 기록</button>
+      <div id="clockModeContainer" class="hidden">
+        <div class="focus-btn-container">
+          <button id="clockFocusBtn" class="focus-mode-btn">큰화면으로 보기</button>
+        </div>
+        
+        <div id="clockContainer">
+          <div id="clockDate">Loading...</div>
+          <div id="realTimeClock">00:00:00</div>
+        </div>
+      </div>
+
+      <button id="openRecordBtn" class="record-btn-float">📝 노트</button>
     </div>
 
     <div id="recordView" class="view-container hidden">
       <div class="record-header">
         <button id="closeRecordBtn" class="back-btn">← 타이머로 돌아가기</button>
         <button id="recordFocusBtn" class="focus-mode-btn small">큰화면으로 보기</button>
-        <span id="recordDateTitle">2026. 02. 01 기록</span>
+        <span id="recordDateTitle">2026. 02. 01 노트</span>
       </div>
       
       <div class="record-body">
@@ -85,7 +105,8 @@
                 <button id="cancelDeleteBtn" class="control-text-btn cancel">취소</button>
                 <button id="confirmDeleteBtn" class="control-text-btn confirm">확인</button>
               </div>
-              <button id="deleteModeBtn" class="delete-mode-btn">🗑️ 지우기</button>
+              <button id="addModeBtn" class="add-mode-btn">추가</button>
+              <button id="deleteModeBtn" class="delete-mode-btn">지우기</button>
             </div>
 
           </div>
@@ -97,7 +118,7 @@
   </section>
 
   <section class="card tracker-container right-panel">
-    <h2>하루 기록 & 캘린더</h2>
+    <h2>노트 & 캘린더</h2>
     
     <div class="daily-ring-wrapper">
       <canvas id="dailyRing" width="440" height="440"></canvas>
