@@ -33,18 +33,10 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #1b1b1b, #0b0b0b);
   color: #ffffff;
-  /* [수정] 맥북 등에서 화면이 짤리는 문제 해결을 위해 min-height와 auto 스크롤 적용 */
   min-height: 100vh;
   overflow-y: auto; 
   overflow-x: hidden;
   transition: background 0.3s ease;
-}
-
-@media (max-width: 1024px) {
-  body {
-    height: auto;
-    background: #121212;
-  }
 }
 
 .hidden {
@@ -124,28 +116,55 @@ body {
   font-weight: 600;
 }
 
+/* [모바일 최적화 수정] */
 @media (max-width: 1024px) {
+  body {
+    height: auto;
+    background: #121212;
+    overflow-y: auto;
+  }
+
   .layout {
     display: flex;
     flex-direction: column;
     height: auto;
-    padding: 20px;
-    gap: 20px;
+    padding: 16px;
+    gap: 16px;
+    min-height: 0; /* 강제 높이 해제 */
   }
 
+  /* 카드들이 모바일에서 너무 커지거나 작아지지 않도록 */
   .card {
     width: 100%;
-    min-height: 300px;
+    min-height: auto;
+    height: auto;
+    max-height: 80vh; /* 너무 길어지면 내부 스크롤 */
     overflow: visible;
+    flex: none;
   }
-
+  
+  /* 센터 카드 (타이머)는 스크롤 대신 내용물 크기에 맞춤 */
   .center {
     order: -1;
-    min-height: 500px;
+    min-height: 450px;
+    overflow: hidden;
   }
 
-  .left-panel { order: 0; }
-  .right-panel { order: 1; }
+  .left-panel { order: 1; max-height: 400px; overflow-y: auto;}
+  .right-panel { order: 2; }
+  
+  /* 모바일에서 타임 그리드 레이아웃 조정 */
+  .record-body {
+    flex-direction: column;
+  }
+  .record-left {
+    height: 300px; /* 에디터 높이 제한 */
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .record-right {
+    height: 400px;
+  }
 }
 
 @media (min-width: 1600px) {
@@ -256,7 +275,6 @@ body {
 }
 
 /* --- Timer/Clock View 배경 & 플립 애니메이션 --- */
-/* [변경] wolf.jpg -> space.jpg */
 #timerView {
   align-items: center;
   justify-content: space-evenly;
@@ -275,6 +293,7 @@ body {
 }
 
 /* --- Mode Toggle Button --- */
+/* [수정] 버튼 모양 통일 (border-radius: 12px) */
 .mode-toggle-btn {
   position: absolute;
   top: 20px;
@@ -283,7 +302,7 @@ body {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 8px 14px;
-  border-radius: 20px;
+  border-radius: 12px; 
   font-size: 13px;
   cursor: pointer;
   z-index: 20;
@@ -304,13 +323,14 @@ body {
   z-index: 5;
 }
 
+/* [수정] 버튼 모양 통일 (border-radius: 12px) */
 .focus-mode-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: #ccc;
   font-size: 13px;
   padding: 6px 14px;
-  border-radius: 20px;
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   backdrop-filter: blur(4px);
@@ -712,7 +732,6 @@ button:hover {
   gap: 12px;
 }
 
-/* [NEW] 편집(삭제/추가) 모드일 때 버튼 숨김 처리를 위한 스타일 */
 .delete-controls-wrapper.editing .add-mode-btn,
 .delete-controls-wrapper.editing .delete-mode-btn {
   display: none !important;
@@ -1125,7 +1144,7 @@ input[type="number"] {
 }
 
 /* ===============================
-   Focus Mode (집중 모드) - 안드로이드 대응 수정
+   Focus Mode (집중 모드)
 =============================== */
 .exit-focus-btn {
   position: fixed;
@@ -1136,7 +1155,7 @@ input[type="number"] {
   border: 1px solid rgba(255,255,255,0.3);
   padding: 10px 20px;
   font-size: 16px;
-  border-radius: 30px;
+  border-radius: 12px; /* 통일성 위해 12px */
   cursor: pointer;
   z-index: 99999;
   font-weight: 600;
@@ -1146,11 +1165,11 @@ input[type="number"] {
   background: rgba(255,255,255,0.3);
 }
 
-/* 집중 모드 노트 표시 (기본 스타일 및 개선) */
+/* 집중 모드 노트 표시 */
 #focusNoteDisplay {
   width: 80%;
   max-width: 800px;
-  max-height: 25vh; /* 화면 높이의 25%까지만 */
+  max-height: 25vh; 
   overflow-y: auto;
   margin-bottom: 20px;
   text-align: center;
@@ -1160,14 +1179,12 @@ input[type="number"] {
   white-space: pre-wrap;
   z-index: 50;
   
-  /* [수정] 배경 제거 및 텍스트 쉐도우 추가 (요청사항 반영) */
   background: transparent;
   backdrop-filter: none;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   border-radius: 0;
   padding: 0;
   
-  /* 스크롤바 숨기기 */
   scrollbar-width: none; 
 }
 #focusNoteDisplay::-webkit-scrollbar {
@@ -1190,7 +1207,6 @@ body.focus-mode .mode-toggle-btn {
   display: none !important;
 }
 
-/* 집중 모드 시 기록 페이지 내부의 '큰화면으로 보기' 버튼 숨김 */
 body.focus-mode #recordFocusBtn,
 body.focus-mode #clockFocusBtn {
   display: none !important;
@@ -1221,17 +1237,15 @@ body.focus-mode .center {
 
 
 /* =========================================
-   [NEW] Focus Mode: Timer View (Split Layout)
-   타이머 모드일 때만 Grid 적용 (배경 이미지가 지구(clock-mode-bg)가 아닐 때)
-========================================= */
-/* [중요] 배경 잘림 방지를 위해 background-attachment: fixed 추가 및 cover 속성 강화 */
+   Focus Mode: Timer View (Split Layout)
+======================================== */
 body.focus-mode #timerView {
     width: 100%;
     height: 100%;
     min-height: 100vh;
     background-size: cover;
     background-position: center;
-    background-attachment: fixed; /* 스크롤 시에도 배경 고정 */
+    background-attachment: fixed; 
 }
 
 body.focus-mode #timerView:not(.clock-mode-bg) {
@@ -1243,10 +1257,8 @@ body.focus-mode #timerView:not(.clock-mode-bg) {
   width: 100%;
   height: 100%;
   padding: 5%;
-  /* space.jpg 배경이 상위 규칙에서 상속됨 */
 }
 
-/* 컨테이너들의 display: contents로 자식 요소들이 grid에 직접 배치되게 함 */
 body.focus-mode #timerView:not(.clock-mode-bg) #timerModeContainer,
 body.focus-mode #timerView:not(.clock-mode-bg) #timerContainer {
   display: contents;
@@ -1270,7 +1282,7 @@ body.focus-mode #timerView:not(.clock-mode-bg) #currentCategory {
 }
 
 body.focus-mode #timerView:not(.clock-mode-bg) #timer {
-  font-size: 18vmin; /* 링이 있으므로 조금 줄임 */
+  font-size: 18vmin; 
   margin: 0;
   line-height: 1;
   text-align: left;
@@ -1282,7 +1294,7 @@ body.focus-mode #timerView:not(.clock-mode-bg) #focusNoteDisplay {
   grid-row: 2;
   width: 100%;
   max-width: 100%;
-  text-align: left; /* 좌측 정렬 */
+  text-align: left; 
   align-self: start;
   font-size: 1.5rem;
   margin-top: 0;
@@ -1294,39 +1306,51 @@ body.focus-mode #timerView:not(.clock-mode-bg) #ring {
   grid-column: 2;
   grid-row: 1 / span 2;
   justify-self: center;
-  /* [변경] 기존 50vmin -> 58vmin (약간 키움) */
   width: 58vmin !important; 
   height: 58vmin !important;
 }
 
 
 /* =========================================
-   [NEW] Focus Mode: Clock View (Centered Stack)
-   시계 모드일 때 (배경 이미지가 지구일 때)
-========================================= */
+   Focus Mode: Clock View (Centered Stack)
+======================================== */
 body.focus-mode #timerView.clock-mode-bg {
   display: flex !important;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7)), url('earth.jpg');
-  /* 배경 고정 및 사이즈 확보 */
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   width: 100%;
   min-height: 100vh;
-  
-  /* [수정] 노트와 시계 간격을 좁히기 위해 gap 사용 */
-  gap: 1vh;
+  gap: 2vh; /* 간격 조정 */
 }
 
-/* 시계 모드에서 노트와 시계 간격 좁히기 */
+/* [수정] 텍스트가 시간과 너무 떨어져 있는 문제 해결 */
 body.focus-mode #timerView.clock-mode-bg #focusNoteDisplay {
-  /* [수정] margin-bottom 제거하여 gap으로만 간격 조절 */
   margin-bottom: 0;
   width: 80%;
   text-align: center;
+  order: 2; /* 시계 아래로 배치 */
+  margin-top: 10px;
+}
+
+body.focus-mode #clockModeContainer {
+    /* 기존 코드에서 이 부분이 문제였습니다.
+       .hidden 클래스가 있어도 여기서 display: flex !important를 해버려서 강제로 보였던 것입니다.
+       아래처럼 :not(.hidden)을 추가하여 hidden이 아닐 때만 보이도록 수정했습니다. */
+}
+
+/* [수정] hidden 클래스가 없을 때만 보이도록 수정하여 타이머 모드에서 겹침 방지 */
+body.focus-mode #clockModeContainer:not(.hidden) {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0;
+    order: 1;
 }
 
 body.focus-mode #clockContainer {
@@ -1337,12 +1361,12 @@ body.focus-mode #clockContainer {
 body.focus-mode #realTimeClock {
   font-size: 28vmin; 
   line-height: 1;
-  margin-top: 0; /* 시계 상단 마진 제거 */
+  margin-top: 0; 
 }
 
 body.focus-mode #clockDate {
   font-size: 5vmin;
-  margin-bottom: 1vmin; /* 날짜 하단 마진 축소 */
+  margin-bottom: 1vmin; 
 }
 
 /* 기록 뷰 집중 모드 */
@@ -1355,7 +1379,6 @@ body.focus-mode #recordView {
   overflow: hidden; 
 }
 
-/* 집중 모드 시 날짜 텍스트 위치 수정 (중앙 상단) */
 body.focus-mode #recordDateTitle {
   position: absolute;
   top: 22px; 

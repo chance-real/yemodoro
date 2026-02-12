@@ -23,6 +23,7 @@ function playAlarmSound() {
 }
 
 document.addEventListener('click', (e) => {
+  // [수정] 설정 아이콘(.category-settings) 클릭 시 소리 추가
   const target = e.target.closest('button, input, .category-item, .category-settings, .day-block, .settings-btn, .menu-item, .record-btn-float, .focus-mode-btn, .mode-toggle-btn');
   if (target) {
     playClickSound();
@@ -98,7 +99,6 @@ const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
 const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
 const gridTitleText = document.getElementById("gridTitleText"); 
 
-// [NEW] Wrapper selection for toggling buttons
 const deleteControlsWrapper = document.querySelector(".delete-controls-wrapper");
 
 /* ===============================
@@ -109,42 +109,13 @@ function getTodayKey() {
   return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 
-// [핵심] 10분 단위(600초) 데이터 정제 함수
+// [수정] 10분 단위 데이터 정제 (렌더링 시 보조, 핵심 로직은 renderTimeGrid에 위임)
+// DB 저장용 데이터는 세션 원본을 유지하고, 렌더링 할 때만 10분 그리드 로직을 적용합니다.
 function sanitizeLogs(logData) {
+  // DB 저장시에는 raw 데이터를 유지하되, 지나치게 짧은(예: 1초 미만) 노이즈만 제거
   if (!logData || !logData.sessions) return logData;
-
-  const validSessions = [];
-  const newTotals = {};
-
-  logData.sessions.forEach(session => {
-    // 10분 단위 (600초)
-    const UNIT = 600 * 1000; 
-    let duration = session.end - session.start;
-
-    // 10분 미만이면 삭제
-    if (duration < UNIT) return;
-
-    // 10분 단위로 내림 처리
-    const quantizedDuration = Math.floor(duration / UNIT) * UNIT;
-    
-    // 종료 시간 재설정
-    const newEnd = session.start + quantizedDuration;
-
-    // 카테고리별 합계 계산
-    if (!newTotals[session.catId]) newTotals[session.catId] = 0;
-    newTotals[session.catId] += (quantizedDuration / 1000); 
-
-    validSessions.push({
-      ...session,
-      end: newEnd
-    });
-  });
-
-  return {
-    ...logData,
-    sessions: validSessions,
-    totals: newTotals
-  };
+  const validSessions = logData.sessions.filter(s => (s.end - s.start) > 1000);
+  return { ...logData, sessions: validSessions };
 }
 
 async function saveTodayLog() {
@@ -154,15 +125,15 @@ async function saveTodayLog() {
     todayLog.memo = editor.innerHTML;
   }
   
-  // 저장 전에 10분 단위 정제 적용
-  const cleanLog = sanitizeLogs(todayLog);
-  todayLog = cleanLog;
-  viewLog = cleanLog;
+  // 저장 시 데이터 정제
+  todayLog = sanitizeLogs(todayLog);
+  viewLog = todayLog;
 
   try {
-    await setDoc(doc(db, "users", currentUser.uid, "logs", getTodayKey()), cleanLog);
-    drawDailyRing(cleanLog);
-    renderTimeGrid(cleanLog);
+    await setDoc(doc(db, "users", currentUser.uid, "logs", getTodayKey()), todayLog);
+    drawDailyRing(todayLog);
+    renderTimeGrid(todayLog);
+    updateTodayCalendarBlock(); // 캘린더 색상 즉시 업데이트
   } catch(e) { console.error("오늘 기록 저장 실패:", e); }
 }
 
@@ -225,7 +196,7 @@ let slashMenuIndex = 0;
 // Delete & Add Mode Controls
 let isDeleteMode = false;
 let isAddMode = false;
-let selectedAddCategory = null; // 추가 모드에서 선택된 카테고리
+let selectedAddCategory = null; 
 let tempLogData = null; 
 let undoStack = [];
 let redoStack = [];
@@ -293,28 +264,25 @@ function stopClock() {
 }
 
 toggleViewBtn.onclick = () => {
-  // Flip Animation Start
   timerView.classList.add("flipping");
 
   setTimeout(() => {
     isClockMode = !isClockMode;
     
     if (isClockMode) {
-      // Switch to Clock
       timerModeContainer.classList.add("hidden");
       clockModeContainer.classList.remove("hidden");
       toggleViewBtn.textContent = "⏱ 타이머";
       timerView.classList.add("clock-mode-bg");
       startClock();
     } else {
-      // Switch to Timer
       clockModeContainer.classList.add("hidden");
       timerModeContainer.classList.remove("hidden");
       toggleViewBtn.textContent = "🕒 현재 시각";
       timerView.classList.remove("clock-mode-bg");
       stopClock();
     }
-  }, 300); // 300ms matches half of transition duration (0.6s)
+  }, 300);
 
   setTimeout(() => {
     timerView.classList.remove("flipping");
@@ -453,6 +421,7 @@ function openSettings(cat, triggerElement) {
     cat.name = nameInput.value || cat.name;
     cat.color = colorInput.value;
     
+    // 로그 업데이트
     if (todayLog && todayLog.sessions) {
         todayLog.sessions.forEach(session => {
             if (session.catId === cat.id) {
@@ -597,19 +566,19 @@ function trackCurrentSecond() {
     });
   }
 
+  // 총 시간 집계 (초 단위 누적)
   if (!todayLog.totals[activeCategory.id]) {
     todayLog.totals[activeCategory.id] = 0;
   }
   todayLog.totals[activeCategory.id] += 1;
 
+  // UI 업데이트 (현재 뷰가 오늘이라면)
   if (selectedDateKey === getTodayKey()) {
     viewLog = todayLog; 
-    
-    const displayLog = sanitizeLogs(JSON.parse(JSON.stringify(todayLog)));
-    drawDailyRing(displayLog); 
+    drawDailyRing(viewLog); 
     
     if (!recordView.classList.contains("hidden")) {
-        renderTimeGrid(displayLog);
+        renderTimeGrid(viewLog);
     }
   }
   updateTodayCalendarBlock();
@@ -650,24 +619,19 @@ function drawRing() {
   const dpr = window.devicePixelRatio || 1;
   let size = 260; 
 
-  // [수정] 집중 모드(큰 화면)일 때 해상도를 동적으로 높여 선명하게 그리기
   const isFocusMode = document.body.classList.contains("focus-mode");
   if (isFocusMode) {
-      // 뷰포트의 작은 쪽 기준으로 크기 계산 (약 60% 비율, CSS vmin과 유사하게 매칭)
       const vmin = Math.min(window.innerWidth, window.innerHeight);
-      size = vmin * 0.6; // 충분히 큰 해상도 확보
+      size = vmin * 0.6; 
   }
 
   canvas.width = size * dpr;
   canvas.height = size * dpr;
 
-  // CSS 스타일 사이즈는 모드에 따라 다르게 적용
-  // (스크립트에서 제어해도 되지만, CSS에서 !important로 제어 중인 값을 존중하기 위해 스타일 속성은 보조적 역할)
   if (!isFocusMode) {
     canvas.style.width = "260px";
     canvas.style.height = "260px";
   } else {
-    // 집중 모드일 때는 CSS 클래스가 width/height를 담당하므로 여기서는 픽셀 버퍼만 조정
     canvas.style.width = "";
     canvas.style.height = "";
   }
@@ -679,8 +643,8 @@ function drawRing() {
   const progress = remainingSeconds / maxFullSeconds; 
   
   const center = size / 2;
-  const radius = size * 0.35; // 크기에 비례한 반지름 (기존 90/260 = ~0.35)
-  const lineWidth = size * 0.12; // 크기에 비례한 두께 (기존 38/260 = ~0.15, 요청대로 약간 얇게 0.12로 조정)
+  const radius = size * 0.35; 
+  const lineWidth = size * 0.12; 
   const color = activeCategory ? activeCategory.color : "#FF2D55";
 
   ctx.beginPath();
@@ -701,7 +665,7 @@ function drawRing() {
     ctx.lineWidth = lineWidth;
     ctx.lineCap = "round"; 
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = size * 0.1; // 그림자도 비율에 맞게
+    ctx.shadowBlur = size * 0.1;
     ctx.shadowColor = color;
     ctx.stroke();
   }
@@ -717,8 +681,7 @@ openRecordBtn.onclick = () => {
   recordView.classList.remove("hidden");
   if (!selectedDateKey) selectedDateKey = getTodayKey();
   loadMemoData(selectedDateKey);
-  const cleanLog = sanitizeLogs(viewLog);
-  renderTimeGrid(cleanLog); 
+  renderTimeGrid(viewLog); 
 };
 
 closeRecordBtn.onclick = () => {
@@ -733,13 +696,11 @@ function enterFocusMode() {
   document.body.classList.add("focus-mode");
   exitFocusBtn.classList.remove("hidden");
   
-  // 집중 모드 노트 동기화
   if (editor && focusNoteDisplay) {
     focusNoteDisplay.innerHTML = editor.innerHTML;
     focusNoteDisplay.classList.remove("hidden");
   }
 
-  // [추가] 링 고화질 다시 그리기
   requestAnimationFrame(drawRing);
 }
 
@@ -751,11 +712,9 @@ function exitFocusMode() {
     focusNoteDisplay.classList.add("hidden");
   }
 
-  // [추가] 링 원래 크기로 다시 그리기
   requestAnimationFrame(drawRing);
 }
 
-// [추가] 윈도우 리사이즈 시 집중모드라면 링 다시 그려서 해상도/크기 유지
 window.addEventListener('resize', () => {
     if (document.body.classList.contains('focus-mode')) {
         drawRing();
@@ -778,7 +737,6 @@ document.addEventListener("keydown", (e) => {
 =============================== */
 addModeBtn.onclick = () => {
     if (!isAddMode) {
-        // 추가 모드 시작 전에 카테고리 선택
         showCategoryPickerForAdd();
     } else {
         exitAddMode(false);
@@ -829,7 +787,6 @@ function showCategoryPickerForAdd() {
         });
     }
 
-    // 바깥 클릭 시 닫기
     const closeHandler = (e) => {
         if (!panel.contains(e.target) && e.target !== addModeBtn) {
             panel.remove();
@@ -840,7 +797,7 @@ function showCategoryPickerForAdd() {
 }
 
 function enterAddMode() {
-    if (isDeleteMode) exitDeleteMode(false); // 삭제 모드 해제
+    if (isDeleteMode) exitDeleteMode(false); 
     
     isAddMode = true;
     addModeBtn.classList.add("active");
@@ -851,7 +808,6 @@ function enterAddMode() {
     editControls.classList.remove("hidden");
     gridTitleText.classList.add("hidden");
     
-    // [NEW] 버튼 래퍼에 편집 클래스 추가 (추가/삭제 버튼 숨김용)
     if(deleteControlsWrapper) deleteControlsWrapper.classList.add("editing");
 
     tempLogData = sanitizeLogs(JSON.parse(JSON.stringify(viewLog)));
@@ -874,7 +830,6 @@ function exitAddMode(saveChanges) {
     timeGrid.classList.remove("add-mode");
     gridTitleText.classList.remove("hidden");
     
-    // [NEW] 버튼 래퍼 편집 클래스 제거
     if(deleteControlsWrapper) deleteControlsWrapper.classList.remove("editing");
 
     if (saveChanges && tempLogData) {
@@ -885,9 +840,13 @@ function exitAddMode(saveChanges) {
         saveLogToDB(selectedDateKey, viewLog);
         renderTimeGrid(viewLog);
         drawDailyRing(viewLog);
-        updateTodayCalendarBlock();
+        
+        // 캘린더 즉시 업데이트
+        if(selectedDateKey === getTodayKey()) updateTodayCalendarBlock();
+        else updateCalendarCell(selectedDateKey);
+        
     } else {
-        renderTimeGrid(sanitizeLogs(viewLog));
+        renderTimeGrid(viewLog);
     }
 
     tempLogData = null;
@@ -911,14 +870,13 @@ deleteModeBtn.onclick = () => {
 };
 
 function enterDeleteMode() {
-  if (isAddMode) exitAddMode(false); // 추가 모드 해제
+  if (isAddMode) exitAddMode(false); 
 
   isDeleteMode = true;
   deleteModeBtn.classList.add("active");
   editControls.classList.remove("hidden");
   gridTitleText.classList.add("hidden");
   
-  // [NEW] 버튼 래퍼에 편집 클래스 추가 (추가/삭제 버튼 숨김용)
   if(deleteControlsWrapper) deleteControlsWrapper.classList.add("editing");
   
   tempLogData = sanitizeLogs(JSON.parse(JSON.stringify(viewLog)));
@@ -938,7 +896,6 @@ function exitDeleteMode(saveChanges) {
   
   gridTitleText.classList.remove("hidden");
   
-  // [NEW] 버튼 래퍼 편집 클래스 제거
   if(deleteControlsWrapper) deleteControlsWrapper.classList.remove("editing");
   
   if (saveChanges && tempLogData) {
@@ -952,10 +909,13 @@ function exitDeleteMode(saveChanges) {
     
     renderTimeGrid(viewLog);
     drawDailyRing(viewLog); 
-    updateTodayCalendarBlock(); 
+    
+    // 캘린더 즉시 업데이트
+    if(selectedDateKey === getTodayKey()) updateTodayCalendarBlock();
+    else updateCalendarCell(selectedDateKey);
     
   } else {
-    renderTimeGrid(sanitizeLogs(viewLog));
+    renderTimeGrid(viewLog);
   }
   
   tempLogData = null;
@@ -970,14 +930,12 @@ function handleBlockClick(startSec, endSec) {
   const newSessions = [];
   let changed = false;
 
-  // 기존 세션들을 순회하며 범위에 겹치는 것 처리
   tempLogData.sessions.forEach(session => {
     const sDate = new Date(session.start);
     const eDate = new Date(session.end);
     const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
     const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
 
-    // 겹치지 않으면 그대로 유지
     if (eSec <= startSec || sSec >= endSec) {
       newSessions.push(session);
       return;
@@ -985,15 +943,13 @@ function handleBlockClick(startSec, endSec) {
 
     changed = true;
     
-    // 겹치면 잘라내기 (삭제 모드 및 추가 모드 모두 기존 것은 잘라내야 함)
-    // 앞부분 남기기
+    // 겹치면 잘라내기
     if (sSec < startSec) {
       newSessions.push({
         ...session,
         end: new Date(sDate.setHours(0,0,0,0) + startSec * 1000).getTime()
       });
     }
-    // 뒷부분 남기기
     if (eSec > endSec) {
       newSessions.push({
         ...session,
@@ -1002,9 +958,8 @@ function handleBlockClick(startSec, endSec) {
     }
   });
 
-  // 추가 모드라면 새로운 세션을 해당 슬롯에 추가
   if (isAddMode && selectedAddCategory) {
-      const dayBase = new Date(tempLogData.sessions[0]?.start || new Date().getTime()); // 기준 날짜
+      const dayBase = new Date(tempLogData.sessions[0]?.start || new Date().getTime()); 
       if(selectedDateKey) {
           const [y,m,d] = selectedDateKey.split("-");
           dayBase.setFullYear(y, m-1, d);
@@ -1032,8 +987,8 @@ function handleBlockClick(startSec, endSec) {
     newSessions.sort((a,b) => a.start - b.start);
 
     tempLogData.sessions = newSessions;
-    tempLogData = sanitizeLogs(tempLogData); // 정제
-
+    // 임시 데이터는 즉시 정제하지 않고 렌더링 시 처리
+    
     renderTimeGrid(tempLogData);
     updateUndoRedoButtons();
   }
@@ -1075,18 +1030,32 @@ function updateUndoRedoButtons() {
 
 async function saveLogToDB(dateKey, logData) {
   if (!currentUser) return;
+  
+  // 저장 시 카테고리별 total 재계산
+  const newTotals = {};
+  if(logData.sessions) {
+      logData.sessions.forEach(s => {
+          if(!newTotals[s.catId]) newTotals[s.catId] = 0;
+          newTotals[s.catId] += (s.end - s.start)/1000;
+      });
+  }
+  logData.totals = newTotals;
+
   try {
     await setDoc(doc(db, "users", currentUser.uid, "logs", dateKey), logData, { merge: true });
   } catch(e) { console.error("Save Error", e); }
 }
 
 /* ===============================
-   Calendar & Grid (Modified for Delete)
+   Calendar & Grid (Rendering Logic)
 =============================== */
 function renderTimeGrid(logData) {
   timeGrid.innerHTML = "";
   
   const safeData = logData ? logData : { sessions: [] };
+  
+  // [핵심 로직] 10분 단위 블록 색칠 (과반수 로직 적용)
+  // 각 10분 슬롯마다 어떤 카테고리가 5분 이상(300초) 차지했는지 계산
   
   for (let h = 0; h < 24; h++) {
     const row = document.createElement("div");
@@ -1107,21 +1076,45 @@ function renderTimeGrid(logData) {
       const blockStartSec = (h * 3600) + (b * 600);
       const blockEndSec = blockStartSec + 600; 
 
-      let hasSession = null;
+      let dominantCategory = null;
+      let maxDuration = 0;
+      const durations = {};
+
       if (safeData.sessions) {
-         hasSession = safeData.sessions.find(s => {
+        safeData.sessions.forEach(s => {
            const sDate = new Date(s.start);
            const eDate = new Date(s.end);
            const sSec = sDate.getHours()*3600 + sDate.getMinutes()*60 + sDate.getSeconds();
            const eSec = eDate.getHours()*3600 + eDate.getMinutes()*60 + eDate.getSeconds();
            
-           return (sSec < blockEndSec && eSec > blockStartSec);
-         });
+           // 교집합 계산
+           const overlapStart = Math.max(sSec, blockStartSec);
+           const overlapEnd = Math.min(eSec, blockEndSec);
+           const duration = Math.max(0, overlapEnd - overlapStart);
+
+           if (duration > 0) {
+               if(!durations[s.catId]) durations[s.catId] = { dur: 0, color: s.color, name: s.name };
+               durations[s.catId].dur += duration;
+           }
+        });
       }
 
-      if (hasSession) {
-         block.style.background = hasSession.color;
-         block.title = `${hasSession.name}`;
+      // 해당 슬롯에서 가장 오래 지속된 카테고리 찾기
+      for (const catId in durations) {
+          if (durations[catId].dur > maxDuration) {
+              maxDuration = durations[catId].dur;
+              dominantCategory = durations[catId];
+          }
+      }
+
+      // [규칙 적용] 5분(300초) 이상 차지했거나, 짧은 세션 중 가장 큰 지분일 때
+      // 사용자 요청: 10분 단위로 보았을 때 더 큰 지분을 차지하는 그리드에게 줌.
+      // 32-44분 (12분) -> 30-40 블록(8분), 40-50 블록(4분).
+      // 위 로직대로라면 30-40 블록은 480초로 채택. 40-50 블록은 240초로 채택될 수도 있고 안될 수도 있음.
+      // 10분 단위 표현을 위해 최소 임계값(예: 3분 이상)을 두어 노이즈 방지.
+      if (dominantCategory && maxDuration >= 180) { // 3분 이상이면 색칠
+         block.style.background = dominantCategory.color;
+         block.title = `${dominantCategory.name}`;
          block.classList.add("has-data");
       }
       
@@ -1209,13 +1202,23 @@ function renderCalendar(baseDate) {
   }
 }
 
+// 캘린더 개별 셀 업데이트 함수 (편집 후 호출용)
+function updateCalendarCell(targetDateKey) {
+    const block = document.querySelector(`.day-block[data-key="${targetDateKey}"]`);
+    if(block) {
+        const [y, m, d] = targetDateKey.split("-");
+        loadAndApplyDailyData(parseInt(y), parseInt(m)-1, parseInt(d), block);
+    }
+}
+
 async function loadAndApplyDailyData(year, month, day, blockElement) {
   if (!currentUser) return;
   const dateKey = blockElement.dataset.key;
   let data = null;
 
-  if (dateKey === getTodayKey()) {
-    data = todayLog;
+  if (dateKey === getTodayKey() && selectedDateKey === getTodayKey()) {
+     // 오늘이고 현재 보고 있다면 메모리 데이터 사용 (가장 최신)
+     data = todayLog;
   } else {
     try {
       const docRef = doc(db, "users", currentUser.uid, "logs", dateKey);
@@ -1223,8 +1226,6 @@ async function loadAndApplyDailyData(year, month, day, blockElement) {
       if (docSnap.exists()) data = docSnap.data();
     } catch (e) {}
   }
-
-  if(data) data = sanitizeLogs(data);
 
   if (data && data.totals && Object.keys(data.totals).length > 0) {
     let maxSec = -1, maxCatId = null;
@@ -1250,6 +1251,9 @@ async function loadAndApplyDailyData(year, month, day, blockElement) {
 
       blockElement.dataset.tooltip = `${blockElement.dataset.date}\n⏱ ${timeStr}\n${catName || "삭제된 카테고리"}`;
     }
+  } else {
+      // 데이터가 없거나 삭제되어 totals가 비었을 경우 색상 제거
+      blockElement.style.background = "";
   }
 }
 
@@ -1316,7 +1320,7 @@ function drawDailyRing(logData) {
   ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; 
   ctx.stroke();
 
-  // 2. 데이터 세션
+  // 2. 데이터 세션 그리기
   if (logData && logData.sessions) {
     logData.sessions.forEach(session => {
       if (!session.start || !session.end || session.end <= session.start) return;
@@ -1325,6 +1329,27 @@ function drawDailyRing(logData) {
       const endDate = new Date(session.end);
       drawSessionDual(ctx, startDate, endDate, session.color, center);
     });
+  }
+
+  // [추가] 10분 단위 구분선 그리기 (흰색 라인 오버레이)
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"; // 튀지 않게 은은한 흰색
+  ctx.lineWidth = 2;
+  const totalSlots = 12 * 6; // 12시간 * 6개(10분단위) = 72개 슬롯
+  
+  for(let i=0; i<totalSlots; i++) {
+      const angle = (i / totalSlots) * (Math.PI * 2) - (Math.PI / 2);
+      
+      // AM Ring Separators
+      ctx.beginPath();
+      ctx.moveTo(center + Math.cos(angle) * (INNER_R - RING_WIDTH/2), center + Math.sin(angle) * (INNER_R - RING_WIDTH/2));
+      ctx.lineTo(center + Math.cos(angle) * (INNER_R + RING_WIDTH/2), center + Math.sin(angle) * (INNER_R + RING_WIDTH/2));
+      ctx.stroke();
+      
+      // PM Ring Separators
+      ctx.beginPath();
+      ctx.moveTo(center + Math.cos(angle) * (OUTER_R - RING_WIDTH/2), center + Math.sin(angle) * (OUTER_R - RING_WIDTH/2));
+      ctx.lineTo(center + Math.cos(angle) * (OUTER_R + RING_WIDTH/2), center + Math.sin(angle) * (OUTER_R + RING_WIDTH/2));
+      ctx.stroke();
   }
 }
 
@@ -1335,7 +1360,8 @@ function drawSessionDual(ctx, start, end, color, center) {
   const startSec = (start.getTime() - dayStart.getTime()) / 1000;
   const endSec = (end.getTime() - dayStart.getTime()) / 1000;
   
-  if (endSec - startSec < 600) return; 
+  // 너무 짧은 세션 시각화 제외 (최소 1분)
+  if (endSec - startSec < 60) return; 
 
   const halfDay = 43200; // 12시간
 
@@ -1437,7 +1463,6 @@ onAuthStateChanged(auth, async (user) => {
     userName.textContent = user.displayName;
     userName.classList.remove("hidden");
 
-    // [중요] 로그인 시 기존(비로그인) 데이터 초기화 - 데이터 섞임 방지
     categories = [];
     activeCategory = { ...defaultCategory };
     todayLog = { sessions: [], totals: {}, memo: "" };
@@ -1462,21 +1487,20 @@ onAuthStateChanged(auth, async (user) => {
     selectedDateKey = getTodayKey();
     todayDateEl.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
     
-    // 로그 데이터 불러오기 (병합 X -> DB 데이터 우선)
+    // 로그 데이터 불러오기
     try {
       const docRef = doc(db, "users", user.uid, "logs", selectedDateKey);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const dbData = docSnap.data();
-        // DB 데이터로 완전히 덮어쓰기
         todayLog = { 
             sessions: dbData.sessions || [], 
             totals: dbData.totals || {}, 
             memo: dbData.memo || "" 
         };
-        saveTodayLog(); // 로컬에 반영된 내용을 다시 저장 (혹은 생략 가능)
+        // 불러온 직후 오늘 날짜라면 로컬에 저장하여 동기화 유지
+        if(selectedDateKey === getTodayKey()) saveTodayLog(); 
       } else {
-        // DB에 데이터가 없으면 새 기록 시작
         saveTodayLog();
       }
     } catch(e) {}
@@ -1488,15 +1512,13 @@ onAuthStateChanged(auth, async (user) => {
     loadMemoData(selectedDateKey); 
 
   } else {
-    // 로그아웃 시 데이터 완전 초기화
     stopTimerLogic();
     currentUser = null;
     
-    // 중요: 화면에 남은 개인정보 제거
     todayLog = { sessions: [], totals: {}, memo: "" };
     viewLog = { sessions: [], totals: {}, memo: "" };
     categories = []; 
-    activeCategory = { ...defaultCategory }; // 기본값 복구
+    activeCategory = { ...defaultCategory }; 
     selectedDateKey = getTodayKey();
     
     authBtn.textContent = "Google 로그인";
@@ -1506,10 +1528,9 @@ onAuthStateChanged(auth, async (user) => {
     userName.textContent = "";
     
     categoryList.innerHTML = "";
-    editor.innerHTML = ""; // 에디터 비우기
-    currentCategory.textContent = activeCategory.name; // 카테고리 이름 초기화
+    editor.innerHTML = ""; 
+    currentCategory.textContent = activeCategory.name; 
     
-    // 초기화된 상태 렌더링
     renderCategories();
     drawRing();
     drawDailyRing({ sessions: [] }); 
@@ -1532,7 +1553,7 @@ authBtn.onclick = async () => {
 };
 
 /* ===============================
-   Slash Menu Functions (Refined)
+   Slash Menu Functions
 =============================== */
 function showSlashMenu(query) {
   const selection = window.getSelection();
@@ -1542,7 +1563,6 @@ function showSlashMenu(query) {
   
   slashMenu.classList.remove("hidden");
   
-  const editorRect = editor.getBoundingClientRect();
   let top = rect.bottom + window.scrollY;
   let left = rect.left + window.scrollX;
   
@@ -1554,7 +1574,6 @@ function showSlashMenu(query) {
   const items = slashMenu.querySelectorAll(".menu-item");
   let hasVisible = false;
   
-  // 자음 검색 단축키 매핑
   const shortcuts = {
       'ㄱ': '글제목',
       'ㅊ': '체크박스',
@@ -1668,30 +1687,23 @@ function applySlashCommand(item) {
   if (!selection.rangeCount) return;
   const range = selection.getRangeAt(0);
   
-  // 1. 현재 텍스트 노드에서 명령어 부분만 깨끗하게 제거
   const currentTextNode = range.startContainer;
   let textContent = currentTextNode.textContent;
   const slashIdx = textContent.lastIndexOf("/");
   
   if (currentTextNode.nodeType === 3 && slashIdx >= 0) {
-      // 슬래시 앞부분만 남김 (예: "안녕 /체" -> "안녕 ")
       currentTextNode.textContent = textContent.substring(0, slashIdx);
   }
 
   const parentBlock = currentTextNode.parentNode;
-  // 텍스트 제거 후 블록이 비었는지 확인
   const isBlockEmpty = parentBlock.textContent.trim() === "";
 
-  // 2. 새 블록 생성
   const newElement = createNotionBlock(type);
   if (!newElement) return;
 
-  // 3. 삽입 위치 결정 (교체 vs 다음 줄 삽입)
   if (isBlockEmpty && parentBlock.tagName === 'DIV' && !parentBlock.classList.contains('notion-editor')) {
-      // 빈 줄이면 교체
       parentBlock.replaceWith(newElement);
   } else {
-      // 글자가 있으면(중간 실행) 다음 줄에 삽입
       if (parentBlock.nextSibling) {
           parentBlock.parentNode.insertBefore(newElement, parentBlock.nextSibling);
       } else {
@@ -1699,7 +1711,6 @@ function applySlashCommand(item) {
       }
   }
   
-  // 4. 커서 이동
   if (type === "heading") {
       const newRange = document.createRange();
       newRange.selectNodeContents(newElement);
@@ -1720,12 +1731,10 @@ function applySlashCommand(item) {
   }
 }
 
-// 1. 에디터 키보드 이벤트 핸들러
 editor.addEventListener("keydown", (e) => {
   const selection = window.getSelection();
   if (!selection.rangeCount) return;
   
-  // A. 슬래시 메뉴 동작
   if (!slashMenu.classList.contains("hidden")) {
     const items = slashMenu.querySelectorAll(".menu-item");
     const visibleItems = Array.from(items).filter(item => item.style.display !== "none");
@@ -1743,9 +1752,8 @@ editor.addEventListener("keydown", (e) => {
       return;
     }
     if (e.key === "Enter") {
-      // [FIX] 엔터 중복 방지 (이게 핵심)
       e.preventDefault(); 
-      e.stopImmediatePropagation(); // 중요: 뒤쪽 로직 실행 차단
+      e.stopImmediatePropagation(); 
 
       if (visibleItems.length > 0) {
         if (slashMenuIndex < 0) slashMenuIndex = 0;
@@ -1762,20 +1770,15 @@ editor.addEventListener("keydown", (e) => {
     }
   }
 
-  // B. 일반 엔터 및 백스페이스 처리
-  
-  // Callout 내부 동작 처리
   const anchorNode = selection.anchorNode;
   const currentElement = anchorNode.nodeType === 3 ? anchorNode.parentNode : anchorNode;
   const calloutContent = currentElement.closest(".callout-content");
 
   if (calloutContent) {
       if (e.key === "Enter") {
-          // 한글 입력 중 엔터 입력 시 중복 이벤트 방지
           if (e.isComposing) return;
 
           if (!e.shiftKey) {
-             // Enter: 메모 밖으로 나가기
              e.preventDefault();
              const wrapper = calloutContent.closest(".notion-callout");
              const p = document.createElement("div");
@@ -1789,16 +1792,13 @@ editor.addEventListener("keydown", (e) => {
              selection.addRange(range);
              return;
           }
-          // Shift+Enter: 기본 줄바꿈 (허용)
       }
       return; 
   }
 
   if (e.key === "Enter") {
-      // 한글 입력 중 엔터 입력 시 중복 이벤트 방지
       if (e.isComposing) return;
 
-      // 체크박스 연속 생성 및 해제 로직
       const checkboxWrapper = currentElement.closest(".notion-checkbox-wrapper");
       if (checkboxWrapper && !e.shiftKey) {
           e.preventDefault(); 
@@ -1830,7 +1830,6 @@ editor.addEventListener("keydown", (e) => {
           return;
       }
 
-      // 글제목(Heading)에서의 엔터 처리
       const headingBlock = currentElement.closest(".notion-heading");
       if (headingBlock) {
           e.preventDefault();
@@ -1857,7 +1856,6 @@ editor.addEventListener("keyup", (e) => {
   
   const text = node.textContent;
   
-  // 슬래시 감지
   const slashIdx = text.lastIndexOf("/");
   if (slashIdx >= 0) {
       const query = text.slice(slashIdx + 1);
@@ -1871,7 +1869,6 @@ editor.addEventListener("keyup", (e) => {
   }
 });
 
-// 메뉴 클릭 처리
 slashMenu.addEventListener('mousedown', (e) => {
     e.preventDefault(); 
     const item = e.target.closest('.menu-item');
@@ -1880,12 +1877,10 @@ slashMenu.addEventListener('mousedown', (e) => {
     }
 });
 
-// 자동 저장
 editor.addEventListener("input", (e) => {
     if (!currentUser) return;
     if (saveTimeout) clearTimeout(saveTimeout);
     
-    // 집중 모드일 때 실시간 동기화
     if(focusNoteDisplay && !focusNoteDisplay.classList.contains("hidden")) {
         focusNoteDisplay.innerHTML = editor.innerHTML;
     }
@@ -1902,22 +1897,15 @@ editor.addEventListener("input", (e) => {
     }, 1000);
 });
 
-// Initial Render
 renderCategories();
 drawRing();
 renderTime();
 drawDailyRing({ sessions: [] });
 renderCalendar(currentCalDate);
 
-/* ===============================
-   Window Close Safety (Data Protection)
-=============================== */
-// 창을 닫거나 새로고침하기 직전에 저장되지 않은 내용이 있다면 즉시 저장 시도
 window.addEventListener("beforeunload", () => {
   if (currentUser && selectedDateKey === getTodayKey() && editor.innerHTML !== viewLog.memo) {
-      // 1. 메모리에 현재 에디터 내용 반영
       todayLog.memo = editor.innerHTML;
-      // 2. 비동기라 보장은 못하지만, 최신 브라우저는 닫히기 직전 최대한 요청을 보냄
       saveTodayLog(); 
   }
 });
